@@ -36,11 +36,11 @@ namespace diamond {
             Options() = default;
 
             // Delay between page writing.
-            size_t background_writer_delay = 200;
+            uint32_t background_writer_delay = 200;
 
             // The maximum number of pages the background
             // writer will flush.
-            size_t background_writer_max_pages = 100;
+            uint32_t background_writer_max_pages = 100;
 
             // The threshold for eviction in bytes.
             size_t eviction_threshold = 1000000;
@@ -60,7 +60,7 @@ namespace diamond {
         std::fstream _stream;
         Options _options;
         std::unordered_map<
-            std::tuple<Page::Type, size_t>,
+            Page::Key,
             std::shared_ptr<Page>,
             Page::KeyHash
         > _pages;

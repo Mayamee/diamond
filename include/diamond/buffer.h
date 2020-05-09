@@ -18,67 +18,164 @@
 #ifndef _DIAMOND_BUFFER_H
 #define _DIAMOND_BUFFER_H
 
-#include <ostream>
+#include <iostream>
 #include <type_traits>
+
+#include "diamond/endian.h"
 
 namespace diamond {
 
-    class ReadableBuffer {
+    class Buffer {
     public:
-        ReadableBuffer(size_t size, const char* buffer);
+        Buffer();
+        Buffer(size_t size);
+        Buffer(size_t size, char* buffer);
+        Buffer(size_t size, std::istream& stream);
+
+        Buffer(const Buffer& other);
+        Buffer(Buffer&& other);
+
+        ~Buffer();
+
+        size_t size() const;
+
+        char* buffer();
+        const char* buffer() const;
+
+        void write_to_stream(std::ostream& ostream) const;
+
+        char operator[](size_t i) const;
+
+        Buffer& operator=(const Buffer& other);
+
+    private:
+        size_t _size;
+        char* _buffer;
+        bool _owns_buffer;
+    };
+
+    class BufferReader {
+    public:
+        BufferReader(
+            const Buffer& buffer,
+            endian::Endianness endianness = endian::Endianness::BIG);
 
         size_t bytes_read() const;
 
         template <class T>
-        void read(T* val);
+        typename std::enable_if<
+            !std::is_enum<T>::value &&
+            !std::is_arithmetic<T>::value &&
+            std::is_trivially_copyable<T>::value,
+            T
+        >::type
+        read();
 
+        template<class T>
+        typename std::enable_if<std::is_enum<T>::value, T>::type
+        read();
+
+        template<class T>
+        typename std::enable_if<std::is_arithmetic<T>::value, T>::type
+        read();
+
+        void read(Buffer& buffer);
         void read(void* val, size_t size);
 
     private:
         size_t _ptr;
-        size_t _size;
-        const char* _buffer;
+        const Buffer& _buffer;
+        endian::Endianness _endianness;
     };
 
-    class WritableBuffer {
+    class BufferWriter {
     public:
-        WritableBuffer(size_t size);
+        BufferWriter(
+            Buffer& buffer,
+            endian::Endianness endianness = endian::Endianness::BIG);
 
         size_t bytes_written() const;
 
         template <class T>
-        typename std::enable_if<!std::is_enum<T>::value, void>::type
+        typename std::enable_if<
+            !std::is_enum<T>::value &&
+            !std::is_arithmetic<T>::value &&
+            std::is_trivially_copyable<T>::value,
+            void
+        >::type
         write(T val);
 
         template<class T>
         typename std::enable_if<std::is_enum<T>::value, void>::type
         write(T val);
 
-        void write(const void* val, size_t size);
+        template<class T>
+        typename std::enable_if<std::is_arithmetic<T>::value, void>::type
+        write(T val);
 
-        void write_to_stream(const std::ostream& ostream);
+        void write(const Buffer& buffer);
+        void write(const void* val, size_t size);
 
     private:
         size_t _ptr;
-        size_t _size;
-        char* _buffer;
+        Buffer& _buffer;
+        endian::Endianness _endianness;
     };
 
     template <class T>
-    void ReadableBuffer::read(T* val) {
-        return read(val, sizeof(T));
+    typename std::enable_if<
+        !std::is_enum<T>::value &&
+        !std::is_arithmetic<T>::value &&
+        std::is_trivially_copyable<T>::value,
+        T
+    >::type
+    BufferReader::read() {
+        T val;
+        read(&val, sizeof(T));
+        return val;
+    }
+
+    template<class T>
+    typename std::enable_if<std::is_enum<T>::value, T>::type
+    BufferReader::read() {
+        return static_cast<T>(read<typename std::underlying_type<T>::type>());
+    }
+
+    template<class T>
+    typename std::enable_if<std::is_arithmetic<T>::value, T>::type
+    BufferReader::read() {
+        T val;
+        read(&val, sizeof(T));
+        if (_endianness != endian::HOST_ORDER) {
+            endian::swap_endianness(val);
+        }
+        return val;
     }
 
     template <class T>
-    typename std::enable_if<!std::is_enum<T>::value, void>::type
-    WritableBuffer::write(T val) { 
+    typename std::enable_if<
+        !std::is_enum<T>::value &&
+        !std::is_arithmetic<T>::value &&
+        std::is_trivially_copyable<T>::value,
+        void
+    >::type
+    BufferWriter::write(T val) { 
         write(&val, sizeof(T));
     }
 
     template<class T>
     typename std::enable_if<std::is_enum<T>::value, void>::type
-    WritableBuffer::write(T val) {
+    BufferWriter::write(T val) {
         write(static_cast<typename std::underlying_type<T>::type>(val));
+    }
+
+    template<class T>
+    typename std::enable_if<std::is_arithmetic<T>::value, void>::type
+    BufferWriter::write(T val) {
+        if (_endianness != endian::HOST_ORDER) {
+            endian::swap_endianness(val);
+        }
+        return write(&val, sizeof(T));
     }
 
 } // namespace diamond

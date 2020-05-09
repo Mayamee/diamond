@@ -18,74 +18,120 @@
 #include <cstring>
 
 #include "diamond/buffer.h"
-#include "diamond/endian.h"
 
 namespace diamond {
 
-    ReadableBuffer::ReadableBuffer(size_t size, const char* buffer)
-        : _ptr(0), 
-        _size(size),
-        _buffer(buffer) {}
+    Buffer::Buffer()
+        : _size(0),
+        _buffer(nullptr),
+        _owns_buffer(false) {}
 
-    size_t ReadableBuffer::bytes_read() const {
-        return _ptr;
+    Buffer::Buffer(size_t size)
+        : _size(size),
+        _buffer(new char[size]),
+        _owns_buffer(true) {}
+
+    Buffer::Buffer(size_t size, char* buffer)
+        : _size(size),
+        _buffer(buffer),
+        _owns_buffer(false) {}
+
+    Buffer::Buffer(size_t size, std::istream& stream)
+        : _size(size),
+        _buffer(new char[size]),
+        _owns_buffer(true) {
+        stream.read(_buffer, size);
     }
 
-    void ReadableBuffer::read(void* val, size_t size) {
-        std::memcpy(val, _buffer + _ptr, size);
-        _ptr += size;
+    Buffer::Buffer(const Buffer& other)
+        : _size(other._size),
+        _buffer(new char[other._size]),
+        _owns_buffer(true) {
+        std::memcpy(_buffer, other._buffer, _size);
     }
 
-    WritableBuffer::WritableBuffer(size_t size)
+    Buffer::Buffer(Buffer&& other)
+        : _size(other._size),
+        _buffer(other._buffer),
+        _owns_buffer(other._owns_buffer)  {
+        if (_owns_buffer) {
+            other._size = 0;
+            other._buffer = nullptr;
+        }
+    }
+
+    Buffer::~Buffer() {
+        if (_owns_buffer && _buffer) {
+            delete[] _buffer;
+        }
+    }
+
+    size_t Buffer::size() const {
+        return _size;
+    }
+
+    char* Buffer::buffer() {
+        return _buffer;
+    }
+
+    const char* Buffer::buffer() const {
+        return _buffer;
+    }
+
+    void Buffer::write_to_stream(std::ostream& ostream) const {
+        ostream.write(_buffer, _size);
+    }
+
+    char Buffer::operator[](size_t i) const {
+        return _buffer[i];
+    }
+
+    Buffer& Buffer::operator=(const Buffer& other) {
+        if (this != &other) {
+            if (_owns_buffer && _buffer) delete[] _buffer;
+            _size = other._size;
+            _buffer = new char[_size];
+            _owns_buffer = true;
+            std::memcpy(_buffer, other._buffer, _size);
+        }
+
+        return *this;
+    }
+
+    BufferReader::BufferReader(const Buffer& buffer, endian::Endianness endianness)
         : _ptr(0),
-        _size(size),
-        _buffer(new char[_size]) {}
+        _buffer(buffer),
+        _endianness(endianness) {}
 
-    size_t WritableBuffer::bytes_written() const {
+    size_t BufferReader::bytes_read() const {
         return _ptr;
     }
 
-    template <>
-    void WritableBuffer::write(int16_t val) {
-        uint16_t be = htobe16((uint16_t)val);
-        write(&be, sizeof(uint16_t));
+    void BufferReader::read(Buffer& buffer) {
+        read(buffer.buffer(), buffer.size());
     }
 
-    template <>
-    void WritableBuffer::write(int32_t val) {
-        uint32_t be = htobe32((uint32_t)val);
-        write(&be, sizeof(uint32_t));
-    }
-
-    template <>
-    void WritableBuffer::write(int64_t val) {
-        uint64_t be = htobe64((uint64_t)val);
-        write(&be, sizeof(uint64_t));
-    }
-
-    template <>
-    void WritableBuffer::write(uint16_t val) {
-        uint16_t be = htobe16(val);
-        write(&be, sizeof(uint16_t));
-    }
-
-    template <>
-    void WritableBuffer::write(uint32_t val) {
-        uint32_t be = htobe32(val);
-        write(&be, sizeof(uint32_t));
-    }
-
-    template <>
-    void WritableBuffer::write(uint64_t val) {
-        uint64_t be = htobe64(val);
-        write(&be, sizeof(uint64_t));
-    }
-
-    void WritableBuffer::write(const void* val, size_t size) {
-        std::memcpy(_buffer + _ptr, val, size);
+    void BufferReader::read(void* val, size_t size) {
+        std::memcpy(val, _buffer.buffer() + _ptr, size);
         _ptr += size;
     }
 
-    void WritableBuffer::write_to_stream(const std::ostream& ostream) {}
+    BufferWriter::BufferWriter(Buffer& buffer, endian::Endianness endianness)
+        : _ptr(0),
+        _buffer(buffer),
+        _endianness(endianness) {}
+
+    size_t BufferWriter::bytes_written() const {
+        return _ptr;
+    }
+
+    void BufferWriter::write(const Buffer& buffer) {
+        write(buffer.buffer(), buffer.size());
+    }
+
+    void BufferWriter::write(const void* val, size_t size) {
+        std::memcpy(_buffer.buffer() + _ptr, val, size);
+        _ptr += size;
+    }
 
 } // namespace diamond

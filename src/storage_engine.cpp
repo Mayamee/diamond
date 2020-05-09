@@ -21,24 +21,24 @@
 
 namespace diamond {
 
-    void* StorageEngine::get(const Key& key) {
+    StorageEngine::Status StorageEngine::get(const Buffer& key, Buffer& value) {
         std::shared_ptr<Page>& root = _manager.get_root_data_page();
-        return search(root, key);
+        return search(root, key, value);
     }
 
-    void* StorageEngine::search(std::shared_ptr<Page>& page, const Key& key) {
+    StorageEngine::Status StorageEngine::search(std::shared_ptr<Page>& page, const Buffer& key, Buffer& value) {
         if (page == nullptr) {
-            return nullptr;
+            return NOT_FOUND;
         }
 
         if (page->is_leaf_node()) {
-            // const Page::NodeEntry& entry = page->search_node_entries(key.val(), key.size());
-            // return _manager.get_page(entry.next())->
-            return nullptr;
+            const Page::NodeEntry& entry = page->search_node_entries(key.buffer(), key.size());
+            value = _manager.get_page(entry.next_page_key())->get_data_entry(entry.next_data_index());
+            return OK;
         }
 
-        const Page::NodeEntry& entry = page->search_node_entries(key.val(), key.size());
-        return search(_manager.get_page(entry.next()), key);
+        const Page::NodeEntry& entry = page->search_node_entries(key.buffer(), key.size());
+        return search(_manager.get_page(entry.next_page_key()), key, value);
     }
 
 } // namespace diamond

@@ -15,32 +15,6 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _DIAMOND_STORAGE_ENGINE_H
-#define _DIAMOND_STORAGE_ENGINE_H
+#include <glog/logging.h>
 
-#include "diamond/buffer.h"
-#include "diamond/page_manager.h"
-
-namespace diamond {
-
-    class StorageEngine {
-    public:
-        StorageEngine() = default;
-
-        enum Status {
-            NOT_FOUND,
-            OK
-        };
-
-        Status get(const Buffer& key, Buffer& value);
-        Status insert(const Buffer& key, const Buffer& val);
-
-    private:
-        PageManager _manager;
-
-        Status search(std::shared_ptr<Page>& page, const Buffer& key, Buffer& value);
-    };
-
-}
-
-#endif // _DIAMOND_STORAGE_ENGINE_H
+#define UNREACHABLE() CHECK(false) << "unreachable code"

@@ -25,11 +25,13 @@
 #include <tuple>
 #include <vector>
 
+#include "diamond/buffer.h"
+
 namespace diamond {
 
     class Page {
     public:
-        static const size_t PAGE_SIZE = 8192;
+        static const uint16_t SIZE = 8192;
 
         enum Type {
             DATA,
@@ -41,38 +43,41 @@ namespace diamond {
             NONE
         };
 
-        using Key = std::tuple<Type, size_t>;
-
-        class DataEntry {
-        public:
-            DataEntry(size_t size, void* val);
-
-            size_t size() const;
-            const void* val() const;
-
-        private:
-            size_t _size;
-            void* _val;
-        };
+        using Key = std::tuple<Type, uint64_t>;
 
         class NodeEntry {
         public:
-            NodeEntry(size_t key_size, void* key, Page::Key next);
+            NodeEntry(Buffer key, uint64_t data_id, size_t data_index);
+            NodeEntry(Buffer key, uint64_t node_id);
 
             size_t key_size() const;
-            const void* key() const;
-            Page::Key next() const;
+            const Buffer& key() const;
 
-            size_t compare(const void* other, size_t size) const;
+            uint64_t next_data_id() const;
+            size_t next_data_index() const;
+
+            uint64_t next_node_id() const;
+
+            Page::Type next_type() const;
+            Page::Key next_page_key() const;
+
+            size_t compare(const char* other, size_t size) const;
 
         private:
-            size_t _key_size;
-            void* _key;
-            Page::Key _next;
+            Buffer _key;
+
+            Page::Type _next_page_type;
+            union {
+                struct {
+                    uint64_t id;
+                    size_t index;
+                } _next_data_page;
+                uint64_t _next_node_page_id;
+            };
         };
 
         struct KeyHash {
-            size_t operator()(const Key& key) const {
+            uint64_t operator()(const Key& key) const {
                 return std::get<1>(key);
             }
         };
@@ -81,21 +86,15 @@ namespace diamond {
 
         static Type get_offsets_type(Type type);
 
-        // static std::shared_ptr<Page> new_node_offsets_page(
-        //     size_t id,
-        //     size_t offset,
-        //     std::vector<size_t>& offsets,
-        //     size_t next = 0);
-
         static std::shared_ptr<Page> new_page_from_stream(std::istream& stream);
 
         ~Page();
 
         Type get_type() const;
-        size_t get_id() const;
+        uint64_t get_id() const;
         Key get_key() const;
 
-        size_t get_offset() const;
+        uint64_t get_offset() const;
 
         std::time_t last_used() const;
         void set_last_used(std::time_t last_used);
@@ -104,19 +103,19 @@ namespace diamond {
         void set_dirty(bool dirty);
 
         size_t get_num_data_entries() const;
-        const std::vector<DataEntry>* get_data_entries() const;
-        const DataEntry& get_data_entry(size_t i) const;
+        const std::vector<Buffer>* get_data_entries() const;
+        const Buffer& get_data_entry(size_t i) const;
 
         size_t get_num_node_entries() const;
         const std::vector<NodeEntry>* get_node_entries() const;
         const NodeEntry& get_node_entry(size_t i) const;
-        const NodeEntry& search_node_entries(const void* key, size_t size) const;
+        const NodeEntry& search_node_entries(const char* key, size_t size) const;
         bool is_leaf_node() const;
 
         size_t get_num_offsets() const;
         const std::vector<size_t>* get_offsets() const;
-        size_t get_offset(size_t i) const;
-        size_t get_next_offsets() const;
+        uint64_t get_offset(size_t i) const;
+        uint64_t get_next_offsets() const;
 
         size_t memory_usage() const;
 
@@ -124,49 +123,39 @@ namespace diamond {
 
     private:
         Type _type;
-        size_t _id;
-        size_t _offset;
+        uint64_t _id;
+        uint64_t _offset;
         std::time_t _last_used;
         bool _is_dirty = false;
 
         union {
-            struct {
-                std::vector<DataEntry>* entries;
-            } _data;
+            std::vector<Buffer>* _data_entries;
             struct {
                 std::vector<NodeEntry>* entries;
                 bool is_leaf;
             } _node;
             struct {
-                std::vector<size_t>* offsets;
-                size_t next;
+                std::vector<uint64_t>* offsets;
+                uint64_t next;
             } _offsets;
         };
 
         Page(
-            size_t id,
-            size_t offset,
-            std::vector<DataEntry>& entries);
+            uint64_t id,
+            uint64_t offset,
+            std::vector<Buffer> entries);
 
         Page(
-            size_t id,
-            size_t offset,
-            std::vector<NodeEntry>& entries,
+            uint64_t id,
+            uint64_t offset,
+            std::vector<NodeEntry> entries,
             bool is_leaf = false);
 
         Page(
-            size_t id,
-            size_t offset,
-            std::vector<size_t>& offsets,
-            size_t next = 0);
-
-        void ensure_type(Type type) const {
-            if (_type != type) throw std::logic_error("invalid type");
-        }
-
-        void ensure_type_oneof(const std::vector<Type>& types) const {
-            if (std::find(types.begin(), types.end(), _type) == types.end()) throw std::logic_error("invalid type");
-        }
+            uint64_t id,
+            uint64_t offset,
+            std::vector<uint64_t> offsets,
+            uint64_t next = 0);
     };
 
 } // namespace diamond

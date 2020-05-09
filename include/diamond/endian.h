@@ -18,28 +18,14 @@
 #ifndef _DIAMOND_ENDIAN_H
 #define _DIAMOND_ENDIAN_H
 
-#ifdef _WIN32
-#include <winsock2.h>
-#   define htobe16(x) htons(x)
-#   define htole16(x) x
-#   define be16toh(x) ntohs(x)
-#   define le16toh(x) x
-#   define htobe32(x) htonl(x)
-#   define htole32(x) x
-#   define be32toh(x) ntohl(x)
-#   define le32toh(x) x
-#   define htobe64(x) htonll(x)
-#   define htole64(x) x
-#   define be64toh(x) ntohll(x)
-#   define le64toh(x) x
-#else
-#include <endian.h>
-#endif
+#include <algorithm>
+#include <array>
+#include <type_traits>
 
 namespace diamond {
 namespace endian {
 
-    enum Endianness {
+    enum class Endianness {
         BIG,
         LITTLE
     };
@@ -57,6 +43,20 @@ namespace endian {
     }
     const Endianness HOST_ORDER = get_host_order();
 #endif
+
+    template <class T>
+    void swap_endianness(
+            T val,
+            typename std::enable_if<std::is_arithmetic<T>::value, std::nullptr_t>::type = nullptr) {
+        union U {
+            T val;
+            std::array<std::uint8_t, sizeof(T)> raw;
+        } src, dst;
+
+        src.val = val;
+        std::reverse_copy(src.raw.begin(), src.raw.end(), dst.raw.begin());
+        val = dst.val;
+    }
 
 } // namespace endian
 } // namespace diamond
