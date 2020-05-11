@@ -61,8 +61,6 @@ namespace diamond {
             Page::Type next_type() const;
             Page::Key next_page_key() const;
 
-            size_t compare(const char* other, size_t size) const;
-
         private:
             Buffer _key;
 
@@ -109,7 +107,7 @@ namespace diamond {
         size_t get_num_node_entries() const;
         const std::vector<NodeEntry>* get_node_entries() const;
         const NodeEntry& get_node_entry(size_t i) const;
-        const NodeEntry& search_node_entries(const char* key, size_t size) const;
+        const NodeEntry& search_node_entries(const Buffer& key) const;
         bool is_leaf_node() const;
 
         size_t get_num_offsets() const;
@@ -133,6 +131,7 @@ namespace diamond {
             struct {
                 std::vector<NodeEntry>* entries;
                 bool is_leaf;
+                uint64_t next;
             } _node;
             struct {
                 std::vector<uint64_t>* offsets;
@@ -140,22 +139,7 @@ namespace diamond {
             } _offsets;
         };
 
-        Page(
-            uint64_t id,
-            uint64_t offset,
-            std::vector<Buffer> entries);
-
-        Page(
-            uint64_t id,
-            uint64_t offset,
-            std::vector<NodeEntry> entries,
-            bool is_leaf = false);
-
-        Page(
-            uint64_t id,
-            uint64_t offset,
-            std::vector<uint64_t> offsets,
-            uint64_t next = 0);
+        Page() = default;
     };
 
 } // namespace diamond

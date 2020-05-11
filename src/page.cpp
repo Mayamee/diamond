@@ -45,29 +45,34 @@ namespace diamond {
         Buffer buffer(Page::SIZE, stream);
         BufferReader buffer_reader(buffer);
 
-        Type type = buffer_reader.read<Type>();
-        uint64_t id = buffer_reader.read<uint64_t>();
-        uint64_t offset = buffer_reader.read<uint64_t>();
+        std::shared_ptr<Page> page(new Page);
 
-        std::shared_ptr<Page> page;
-        switch (type) {
+        page->_type = buffer_reader.read<Type>();
+        page->_id = buffer_reader.read<uint64_t>();
+        page->_offset = buffer_reader.read<uint64_t>();
+
+        switch (page->_type) {
         case DATA: {
             size_t num_entries = buffer_reader.read<size_t>();
-            std::vector<Buffer> entries;
+            page->_data_entries = new std::vector<Buffer>();
             for (size_t i = 0; i < num_entries; i++) {
                 size_t data_size = buffer_reader.read<size_t>();
                 Buffer data(data_size);
                 buffer_reader.read(data);
 
-                entries.emplace_back(std::move(data));
+                page->_data_entries->emplace_back(std::move(data));
             }
-            page = std::shared_ptr<Page>(new Page(id, offset, std::move(entries)));
             break;
         }
         case NODE: {
             size_t num_entries = buffer_reader.read<size_t>();
-            std::vector<NodeEntry> entries;
-            bool is_leaf = true;
+            page->_node.is_leaf = buffer_reader.read<bool>();
+            if (page->_node.is_leaf) {
+                page->_node.next = buffer_reader.read<uint64_t>();
+            } else { 
+                page->_node.next = 0;
+            }
+            page->_node.entries = new std::vector<NodeEntry>();
             for (size_t i = 0; i < num_entries; i++) {
                 size_t key_size = buffer_reader.read<size_t>();
                 Buffer key(key_size);
@@ -78,30 +83,26 @@ namespace diamond {
                 switch (type) {
                 case DATA: {
                     size_t data_index = buffer_reader.read<size_t>();
-                    entries.emplace_back(std::move(key), node_id, data_index);
+                    page->_node.entries->emplace_back(std::move(key), node_id, data_index);
                     break;
                 }
                 case NODE:
-                    is_leaf = false;
-                    entries.emplace_back(std::move(key), node_id);
+                    page->_node.entries->emplace_back(std::move(key), node_id);
                     break;
                 default:
                     break;
                 }
             }
-            page = std::shared_ptr<Page>(new Page(id, offset, std::move(entries), is_leaf));
             break;
         }
         case DATA_OFFSETS:
         case NODE_OFFSETS: {
             size_t num_offsets = buffer_reader.read<size_t>();
-            uint64_t next = buffer_reader.read<uint64_t>();
-            std::vector<uint64_t> offsets;
-            offsets.reserve(num_offsets);
+            page->_offsets.next = buffer_reader.read<uint64_t>();
+            page->_offsets.offsets = new std::vector<uint64_t>();
             for (size_t i = 0; i < num_offsets; i++) {
-                offsets[i] = buffer_reader.read<uint64_t>();
+                page->_offsets.offsets->push_back(buffer_reader.read<uint64_t>());
             }
-            page = std::shared_ptr<Page>(new Page(id, offset, std::move(offsets), next));
             break;
         }
         default:
@@ -189,6 +190,10 @@ namespace diamond {
         return _node.entries->at(i);
     }
 
+    // const Page::NodeEntry& Page::search_node_entries(const Buffer& key) const {
+        // return _node.entries.back();
+    // }
+
     size_t Page::get_num_offsets() const {
         CHECK(_type == DATA_OFFSETS || _type == NODE_OFFSETS);
         return _offsets.offsets->size();
@@ -216,6 +221,11 @@ namespace diamond {
     void Page::write_to_stream(std::ostream& stream) const {
         Buffer buffer(Page::SIZE);
         BufferWriter buffer_writer(buffer);
+
+        buffer_writer.write<Type>(_type);
+        buffer_writer.write<uint64_t>(_id);
+        buffer_writer.write<uint64_t>(_offset);
+
         switch (_type) {
         case DATA: {
             size_t num_entries = _data_entries->size();
@@ -231,6 +241,8 @@ namespace diamond {
         case NODE: {
             size_t num_entries = _node.entries->size();
             buffer_writer.write<size_t>(num_entries);
+            buffer_writer.write<bool>(_node.is_leaf);
+            if (_node.is_leaf) buffer_writer.write<uint64_t>(_node.next);
             for (size_t i = 0; i < num_entries; i++) {
                 const NodeEntry& entry = _node.entries->at(i);
 
@@ -258,38 +270,6 @@ namespace diamond {
 
         buffer.write_to_stream(stream);
     }
-
-    Page::Page(
-            size_t id,
-            size_t offset,
-            std::vector<Buffer> entries)
-        : _type(DATA), 
-        _id(id),
-        _offset(offset),
-        _data_entries(new std::vector<Buffer>(std::move(entries))) {}
-
-    Page::Page(
-            size_t id,
-            size_t offset,
-            std::vector<NodeEntry> entries,
-            bool is_leaf)
-        : _type(NODE),
-        _id(id),
-        _offset(offset),
-        _node({ .entries = new std::vector<NodeEntry>(std::move(entries)), .is_leaf = is_leaf }) {}
-
-    Page::Page(
-            size_t id,
-            size_t offset,
-            std::vector<size_t> offsets,
-            size_t next)
-        : _type(NODE_OFFSETS), 
-        _id(id),
-        _offset(offset),
-        _offsets({
-            .offsets = new std::vector<size_t>(std::move(offsets)),
-            .next = next 
-        }) {}
 
     Page::NodeEntry::NodeEntry(Buffer key, uint64_t data_id, size_t data_index)
         : _key(key),
@@ -337,11 +317,6 @@ namespace diamond {
         default:
             UNREACHABLE();
         }
-    }
-
-    size_t Page::NodeEntry::compare(const char* other, size_t size) const {
-        if (size != _key.size()) return false;
-        return std::memcmp(_key.buffer(), other, size);
     }
 
 } // namespace diamond

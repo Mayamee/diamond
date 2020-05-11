@@ -47,6 +47,10 @@ namespace diamond {
         char operator[](size_t i) const;
 
         Buffer& operator=(const Buffer& other);
+        Buffer& operator=(Buffer&& other);
+
+        bool operator==(const Buffer& other);
+        bool operator!=(const Buffer& other);
 
     private:
         size_t _size;
