@@ -1,4 +1,4 @@
-/*  Diamond - Relational Database
+/*  Diamond - Embedded Relational Database
 **  Copyright (C) 2020  Zach Perkitny
 **
 **  This program is free software: you can redistribute it and/or modify
@@ -16,117 +16,130 @@
 */
 
 #include "diamond/page_manager.h"
+#include "diamond/exception.h"
 
 namespace diamond {
 
-    PageManager::PageManager(const std::string& file_name, const Options& options)
-        : _stream(file_name),
+    PageManager::PageManager(std::iostream& stream, const Options& options)
+        : _stream(stream),
         _options(options),
-        _memory_usage(0),
         _evictions(0) {}
 
-    std::shared_ptr<Page>& PageManager::get_page(Page::Key key) {
-        if (_pages.find(key) != _pages.end()) {
-            std::shared_ptr<Page>& page = _pages.at(key);
-            update_last_used(page);
-            return page;
-        }
-
-        Page::Type type = std::get<0>(key);
-        size_t id = std::get<1>(key);
-        std::shared_ptr<Page> page;
-        switch (type) {
-        case Page::Type::DATA:
-        case Page::Type::NODE: {
-            size_t n = 0;
-            size_t oid = 0;
-            Page::Type offset_type = Page::get_offsets_type(type);
-            while (true) {
-                std::shared_ptr<Page> offsets = get_page(Page::make_key(offset_type, oid));
-                if (!offsets) break;
-                n += offsets->get_num_offsets();
-                if (id < n) {
-                    size_t offset = offsets->get_offset(id % offsets->get_num_offsets());
-                    _stream.seekg(offset);
-                    page = Page::new_page_from_stream(_stream);
-                    break;
-                }
-                oid++;
-            }
-            break;
-        }
-        case Page::Type::DATA_OFFSETS:
-        case Page::Type::NODE_OFFSETS: {
-            std::shared_ptr<Page> prev_page = get_page(Page::make_key(type, id - 1));
-            if (prev_page) {
-                size_t offset = prev_page->get_next_offsets();
-                _stream.seekg(offset);
-                page = Page::new_page_from_stream(_stream);
-            }
-            break;
-        }
-        default:
-            break;
-        }
-
-        if (page) {
-            add_page(page);
-        }
-
-        return page;
+    PageManager::ExclusiveAccessor PageManager::get_exclusive_accessor(Page::Key key) {
+        auto [ page, mutex ] = get_page(key);
+        return ExclusiveAccessor(page, mutex);
     }
 
-    std::shared_ptr<Page>& PageManager::get_root_data_page() {
-        return get_page(Page::make_key(Page::DATA, 0));
-    }
-
-    void PageManager::write_page(std::shared_ptr<Page> page) {
-        Page::Key key = page->get_key();
-        if (_pages.find(key) == _pages.end()) {
-            add_page(page);
-        } else {
-            update_last_used(page);
-        }
-
-        page->set_dirty(true);
-    }
-
-    size_t PageManager::memory_usage() const {
-        return _memory_usage;
+    PageManager::SharedAccessor PageManager::get_shared_accessor(Page::Key key) {
+        auto [ page, mutex ] = get_page(key);
+        return SharedAccessor(page, mutex);
     }
 
     size_t PageManager::evictions() const {
         return _evictions;
     }
 
-    void PageManager::add_page(std::shared_ptr<Page>& page) {
-        if (_memory_usage > _options.eviction_threshold) {
-            Page::Key key = _lru.back();
-            std::shared_ptr<Page>& page = _pages[key];
-            if (page->is_dirty()) {
-                _stream.seekg(page->get_offset());
-                page->write_to_stream(_stream);
-            }
-            _pages.erase(key);
-            _lru.pop_back();
-        }
-
-        _pages[page->get_key()] = page;
-        _memory_usage += page->memory_usage();
-        update_last_used(page);
+    PageManager::Partition& PageManager::get_partition(Page::Key key) {
+        return _partitions.at(Page::KeyHash()(key) % NUM_PARTITIONS);
     }
 
-    void PageManager::update_last_used(std::shared_ptr<Page>& page) {
-        Page::Key key = page->get_key();
-        if (_lru_node_map.find(key) != _lru_node_map.end()) {
-            _lru_node_map[key] = _lru.insert(_lru.end(), key);
-        } else {
-            _lru.splice(_lru.end(), _lru, _lru_node_map[key]);
+    void PageManager::add_page_to_partition(std::shared_ptr<Page>& page, Partition& partition) {
+        // if (_memory_usage > _options.eviction_threshold) {
+        //     Page::Key key = _lru.back();
+        //     std::shared_ptr<Page>& page = _pages[key];
+        //     if (is_page_dirty(page)) {
+        //         _stream.seekg(page->get_offset());
+        //         page->write_to_stream(_stream);
+        //     }
+        //     _pages.erase(key);
+        //     _lru.pop_back();
+        // }
+
+        partition.locks[page->get_key()] = std::make_shared<std::shared_mutex>();
+        // update_last_used(page);
+        partition.pages[page->get_key()] = page;
+    }
+
+    std::shared_ptr<Page> PageManager::get_page_in_partition(Page::Key key, Partition& partition) {
+        if (partition.pages.find(key) != partition.pages.end()) {
+            return partition.pages.at(key);
+        }
+        return nullptr;
+    }
+
+    std::shared_ptr<Page> PageManager::load_page(Page::Key key) {
+        std::shared_ptr<Page> page;
+        Page::Type type = std::get<0>(key);
+        size_t id = std::get<1>(key);
+        switch (type) {
+        case Page::Type::DATA:
+        case Page::Type::NODE: {
+            size_t n = 0;
+            size_t oid = 0;
+            Page::Type offsets_type = Page::get_offsets_type(type);
+            while (true) {
+                size_t offset;
+                {
+                    SharedAccessor accessor = get_shared_accessor(Page::make_key(offsets_type, oid));
+                    const std::shared_ptr<const Page>& offsets = accessor.page();
+                    n += offsets->get_num_offsets();
+                    if (id > n) { 
+                        oid++;
+                        continue;
+                    }
+                    offset = offsets->get_offset(id % offsets->get_num_offsets());
+                }
+                _stream.seekg(offset);
+                page = Page::new_page_from_stream(_stream);
+                break;
+            }
+            break;
+        }
+        case Page::Type::DATA_OFFSETS:
+        case Page::Type::NODE_OFFSETS: {
+            size_t pid = 0;
+            size_t offset;
+            while (pid < id) {
+                _stream.seekg(offset);
+                {
+                    SharedAccessor accessor = get_shared_accessor(Page::make_key(type, pid));
+                    offset = accessor.page()->get_next_offsets();
+                }
+                pid++;
+            }
+            _stream.seekg(offset);
+            page = Page::new_page_from_stream(_stream);
+            break;
+        }
+        default:
+            break;
         }
 
-        std::time_t time = std::time(nullptr);
-        std::gmtime(&time);
-        page->set_last_used(time);
+        return page;
+    }
+
+    std::tuple<
+        std::shared_ptr<Page>,
+        std::shared_ptr<std::shared_mutex>
+    >
+    PageManager::get_page(Page::Key key) {
+        std::shared_ptr<Page> page;
+        Partition& partition = get_partition(key);
+        {
+            std::shared_lock<std::shared_mutex> lock(partition.mutex);
+            if (page = get_page_in_partition(key, partition)) {
+                return { page, partition.locks.at(key) };
+            }
+        }
+
+        page = load_page(key);
+        if (page) {
+            std::unique_lock<std::shared_mutex> lock(partition.mutex);
+            add_page_to_partition(page, partition);
+            return { page, partition.locks.at(key) };
+        }
+
+        throw Exception(Exception::Reason::NO_SUCH_PAGE);
     }
 
     void PageManager::background_writer_task() {
@@ -134,6 +147,38 @@ namespace diamond {
             std::this_thread::sleep_for(
                 std::chrono::milliseconds(_options.background_writer_delay));
         }
+    }
+
+    PageManager::ExclusiveAccessor::~ExclusiveAccessor() {
+        _mutex->unlock();
+    }
+
+    const std::shared_ptr<Page>& PageManager::ExclusiveAccessor::page() const {
+        return _page;
+    }
+
+    PageManager::ExclusiveAccessor::ExclusiveAccessor(
+        std::shared_ptr<Page> page,
+        std::shared_ptr<std::shared_mutex> mutex)
+        : _page(page),
+        _mutex(mutex) {
+        _mutex->lock();
+    }
+
+    PageManager::SharedAccessor::~SharedAccessor() {
+        _mutex->unlock_shared();
+    }
+
+    const std::shared_ptr<const Page>& PageManager::SharedAccessor::page() const {
+        return _page;
+    }
+
+    PageManager::SharedAccessor::SharedAccessor(
+        std::shared_ptr<const Page> page,
+        std::shared_ptr<std::shared_mutex> mutex)
+        : _page(page),
+        _mutex(mutex) {
+        _mutex->lock_shared();
     }
 
 } // namespace diamond

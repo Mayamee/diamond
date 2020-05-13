@@ -1,4 +1,4 @@
-/*  Diamond - Relational Database
+/*  Diamond - Embedded Relational Database
 **  Copyright (C) 2020  Zach Perkitny
 **
 **  This program is free software: you can redistribute it and/or modify
@@ -74,9 +74,16 @@ namespace diamond {
             };
         };
 
+        struct KeyEqual {
+            bool operator()(const Key& lhs, const Key& rhs) const {
+                return std::get<0>(lhs) == std::get<0>(rhs) &&
+                    std::get<1>(lhs) == std::get<1>(rhs);
+            }
+        };
+
         struct KeyHash {
             uint64_t operator()(const Key& key) const {
-                return std::get<1>(key);
+                return std::get<0>(key) ^ std::get<1>(key);
             }
         };
 
@@ -94,12 +101,6 @@ namespace diamond {
 
         uint64_t get_offset() const;
 
-        std::time_t last_used() const;
-        void set_last_used(std::time_t last_used);
-
-        bool is_dirty() const;
-        void set_dirty(bool dirty);
-
         size_t get_num_data_entries() const;
         const std::vector<Buffer>* get_data_entries() const;
         const Buffer& get_data_entry(size_t i) const;
@@ -115,17 +116,12 @@ namespace diamond {
         uint64_t get_offset(size_t i) const;
         uint64_t get_next_offsets() const;
 
-        size_t memory_usage() const;
-
         void write_to_stream(std::ostream& stream) const;
 
     private:
         Type _type;
         uint64_t _id;
         uint64_t _offset;
-        std::time_t _last_used;
-        bool _is_dirty = false;
-
         union {
             std::vector<Buffer>* _data_entries;
             struct {

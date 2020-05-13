@@ -1,4 +1,4 @@
-/*  Diamond - Relational Database
+/*  Diamond - Embedded Relational Database
 **  Copyright (C) 2020  Zach Perkitny
 **
 **  This program is free software: you can redistribute it and/or modify
@@ -144,22 +144,6 @@ namespace diamond {
         return _offset;
     }
 
-    std::time_t Page::last_used() const {
-        return _last_used;
-    }
-
-    void Page::set_last_used(std::time_t last_used) {
-        _last_used = last_used;
-    }
-
-    bool Page::is_dirty() const {
-        return _is_dirty;
-    }
-        
-    void Page::set_dirty(bool dirty) {
-        _is_dirty = dirty;
-    }
-
     size_t Page::get_num_data_entries() const {
         CHECK_EQ(_type, DATA);
         return _data_entries->size();
@@ -212,10 +196,6 @@ namespace diamond {
     size_t Page::get_next_offsets() const {
         CHECK(_type == DATA_OFFSETS || _type == NODE_OFFSETS);
         return _offsets.next;
-    }
-
-    size_t Page::memory_usage() const {
-        return 0;
     }
 
     void Page::write_to_stream(std::ostream& stream) const {

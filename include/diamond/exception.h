@@ -15,25 +15,30 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _DIAMOND_STORAGE_ENGINE_H
-#define _DIAMOND_STORAGE_ENGINE_H
+#ifndef _DIAMOND_EXCEPTION_H
+#define _DIAMOND_EXCEPTION_H
 
-#include "diamond/buffer.h"
-#include "diamond/page_manager.h"
+#include <exception>
+#include <string>
 
 namespace diamond {
 
-    class StorageEngine {
+    class Exception : public std::exception {
     public:
-        StorageEngine() = default;
+        enum class Reason {
+            NO_SUCH_PAGE
+        };
 
-        void get(const Buffer& key, Buffer& val);
-        void insert(const Buffer& key, const Buffer& val);
+        Exception(Reason code);
+
+        Reason reason() const;
 
     private:
-        PageManager _manager;
+        std::string get_msg_for_reason(Reason reason);
+
+        Reason _reason;
     };
 
-}
+} // namespace diamond
 
-#endif // _DIAMOND_STORAGE_ENGINE_H
+#endif // _DIAMOND_EXCEPTION_H

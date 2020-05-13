@@ -1,4 +1,4 @@
-/*  Diamond - Relational Database
+/*  Diamond - Embedded Relational Database
 **  Copyright (C) 2020  Zach Perkitny
 **
 **  This program is free software: you can redistribute it and/or modify
@@ -17,32 +17,32 @@
 
 #include <cstring>
 
+#include "diamond/exception.h"
 #include "diamond/storage_engine.h"
 
 namespace diamond {
 
-    StorageEngine::Status StorageEngine::get(const Buffer& key, Buffer& value) {
-        std::shared_ptr<Page>& root = _manager.get_root_data_page();
-        return search(root, key, value);
-    }
-
-    StorageEngine::Status StorageEngine::insert(const Buffer& key, const Buffer& val) {
-        return OK;
-    }
-
-    StorageEngine::Status StorageEngine::search(std::shared_ptr<Page>& page, const Buffer& key, Buffer& value) {
-        if (page == nullptr) {
-            return NOT_FOUND;
-        }
-
-        if (page->is_leaf_node()) {
+    void StorageEngine::get(const Buffer& key, Buffer& val) {
+        Page::Key page_key = Page::make_key(Page::NODE, 0);
+        Page::Key data_page_key;
+        size_t data_entry_index;
+        while (true) {
+            PageManager::SharedAccessor accessor = _manager.get_shared_accessor(page_key);
+            const std::shared_ptr<const Page>& page = accessor.page();
             const Page::NodeEntry& entry = page->search_node_entries(key);
-            value = _manager.get_page(entry.next_page_key())->get_data_entry(entry.next_data_index());
-            return OK;
+            if (page->is_leaf_node()) {
+                data_page_key = entry.next_page_key();
+                data_entry_index = entry.next_data_index();
+                break;
+            } else {
+                page_key = entry.next_page_key();
+            }
         }
 
-        const Page::NodeEntry& entry = page->search_node_entries(key);
-        return search(_manager.get_page(entry.next_page_key()), key, value);
+        PageManager::SharedAccessor accessor = _manager.get_shared_accessor(data_page_key);
+        val = accessor.page()->get_data_entry(data_entry_index);
     }
+
+    void StorageEngine::insert(const Buffer& key, const Buffer& val) {}
 
 } // namespace diamond

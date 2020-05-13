@@ -1,4 +1,4 @@
-/*  Diamond - Relational Database
+/*  Diamond - Embedded Relational Database
 **  Copyright (C) 2020  Zach Perkitny
 **
 **  This program is free software: you can redistribute it and/or modify
