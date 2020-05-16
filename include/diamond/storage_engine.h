@@ -25,13 +25,19 @@ namespace diamond {
 
     class StorageEngine {
     public:
-        StorageEngine() = default;
+        struct Options {
+            PageManager::Options page_manager_options;
+        };
+
+        StorageEngine(std::iostream& data_stream, const Options& options);
 
         void get(const Buffer& key, Buffer& val);
         void insert(const Buffer& key, const Buffer& val);
 
     private:
         PageManager _manager;
+
+        void initialize(std::iostream& stream);
     };
 
 }

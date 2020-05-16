@@ -19,16 +19,15 @@
 #define _DIAMOND_STORAGE_PAGE_MANAGER_H
 
 #include <array>
+#include <atomic>
+#include <ctime>
 #include <iostream>
 #include <list>
-#include <mutex>
-#include <shared_mutex>
-#include <string>
 #include <thread>
 #include <tuple>
 #include <unordered_map>
-#include <vector>
-#include <unordered_set>
+
+#include <boost/thread.hpp>
 
 #include "diamond/page.h"
 
@@ -45,6 +44,10 @@ namespace diamond {
             // The maximum number of pages the background
             // writer will flush.
             uint32_t background_writer_max_pages = 100;
+
+            // The memory usage at which the manager will
+            // begin to evict pages.
+            float eviction_max_memory_usage = 95;
         };
 
         class ExclusiveAccessor {
@@ -55,13 +58,13 @@ namespace diamond {
 
         private:
             std::shared_ptr<Page> _page;
-            std::shared_ptr<std::shared_mutex> _mutex;
+            std::shared_ptr<boost::shared_mutex> _mutex;
 
             friend class PageManager;
 
             ExclusiveAccessor(
                 std::shared_ptr<Page> page,
-                std::shared_ptr<std::shared_mutex> mutex);
+                std::shared_ptr<boost::shared_mutex> mutex);
         };
 
         class SharedAccessor {
@@ -72,13 +75,13 @@ namespace diamond {
 
         private:
             std::shared_ptr<const Page> _page;
-            std::shared_ptr<std::shared_mutex> _mutex;
+            std::shared_ptr<boost::shared_mutex> _mutex;
 
             friend class PageManager;
 
             SharedAccessor(
                 std::shared_ptr<const Page> page,
-                std::shared_ptr<std::shared_mutex> mutex);
+                std::shared_ptr<boost::shared_mutex> mutex);
         };
 
         PageManager(std::iostream& stream, const Options& options);
@@ -97,21 +100,24 @@ namespace diamond {
         struct Partition {
             Partition() = default;
 
-            std::shared_mutex mutex;
+            boost::shared_mutex mutex;
 
+            struct PageInfo {
+                PageInfo(std::shared_ptr<Page> _page);
+
+                std::shared_ptr<Page> page;
+                std::shared_ptr<boost::shared_mutex> mutex;
+                std::atomic<bool> marked;
+                std::atomic<bool> is_dirty;
+            };
+
+            std::list<Page::Key> page_order;
             std::unordered_map<
                 Page::Key,
-                std::shared_ptr<Page>,
+                PageInfo,
                 Page::KeyHash,
                 Page::KeyEqual
             > pages;
-
-            std::unordered_map<
-                Page::Key,
-                std::shared_ptr<std::shared_mutex>,
-                Page::KeyHash,
-                Page::KeyEqual
-            > locks;
         };
 
         std::array<Partition, NUM_PARTITIONS> _partitions;
@@ -122,14 +128,11 @@ namespace diamond {
 
         Partition& get_partition(Page::Key key);
 
-        void add_page_to_partition(std::shared_ptr<Page>& page, Partition& partition);
-        std::shared_ptr<Page> get_page_in_partition(Page::Key key, Partition& partition);
-
         std::shared_ptr<Page> load_page(Page::Key key);
 
         std::tuple<
             std::shared_ptr<Page>,
-            std::shared_ptr<std::shared_mutex>
+            std::shared_ptr<boost::shared_mutex>
         >
         get_page(Page::Key key);
 

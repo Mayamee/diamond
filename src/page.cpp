@@ -41,6 +41,58 @@ namespace diamond {
         }
     }
 
+    std::shared_ptr<Page> Page::new_data_page() {
+        std::shared_ptr<Page> page(new Page);
+
+        page->_type = DATA;
+        // page->_id = 0;
+        // page->_offset = 0;
+
+        page->_data_entries = new std::vector<Buffer>();
+
+        return page;
+    }
+
+    std::shared_ptr<Page> Page::new_data_offsets_page() {
+        std::shared_ptr<Page> page(new Page);
+
+        page->_type = DATA_OFFSETS;
+        // page->_id = 0;
+        // page->_offset = 0;
+
+        page->_offsets.offsets = new std::vector<uint64_t>();
+        // page->_offsets.next = 0;
+
+        return page;
+    }
+
+    std::shared_ptr<Page> Page::new_node_page() {
+        std::shared_ptr<Page> page(new Page);
+
+        page->_type = NODE;
+        // page->_id = 0;
+        // page->_offset = 0;
+
+        page->_node.entries = new std::vector<NodeEntry>();
+        // page->_node.is_leaf = false;
+        // page->_node.next = 0;
+
+        return page;
+    }
+
+    std::shared_ptr<Page> Page::new_node_offsets_page() {
+        std::shared_ptr<Page> page(new Page);
+
+        page->_type = NODE_OFFSETS;
+        // page->_id = 0;
+        // page->_offset = 0;
+
+        page->_offsets.offsets = new std::vector<uint64_t>();
+        // page->_offsets.next = 0;
+
+        return page;
+    }
+
     std::shared_ptr<Page> Page::new_page_from_stream(std::istream& stream) {
         Buffer buffer(Page::SIZE, stream);
         BufferReader buffer_reader(buffer);

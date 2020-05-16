@@ -23,6 +23,7 @@ namespace diamond {
     PageManager::PageManager(std::iostream& stream, const Options& options)
         : _stream(stream),
         _options(options),
+        _background_writer(&PageManager::background_writer_task, this),
         _evictions(0) {}
 
     PageManager::ExclusiveAccessor PageManager::get_exclusive_accessor(Page::Key key) {
@@ -41,30 +42,6 @@ namespace diamond {
 
     PageManager::Partition& PageManager::get_partition(Page::Key key) {
         return _partitions.at(Page::KeyHash()(key) % NUM_PARTITIONS);
-    }
-
-    void PageManager::add_page_to_partition(std::shared_ptr<Page>& page, Partition& partition) {
-        // if (_memory_usage > _options.eviction_threshold) {
-        //     Page::Key key = _lru.back();
-        //     std::shared_ptr<Page>& page = _pages[key];
-        //     if (is_page_dirty(page)) {
-        //         _stream.seekg(page->get_offset());
-        //         page->write_to_stream(_stream);
-        //     }
-        //     _pages.erase(key);
-        //     _lru.pop_back();
-        // }
-
-        partition.locks[page->get_key()] = std::make_shared<std::shared_mutex>();
-        // update_last_used(page);
-        partition.pages[page->get_key()] = page;
-    }
-
-    std::shared_ptr<Page> PageManager::get_page_in_partition(Page::Key key, Partition& partition) {
-        if (partition.pages.find(key) != partition.pages.end()) {
-            return partition.pages.at(key);
-        }
-        return nullptr;
     }
 
     std::shared_ptr<Page> PageManager::load_page(Page::Key key) {
@@ -120,32 +97,70 @@ namespace diamond {
 
     std::tuple<
         std::shared_ptr<Page>,
-        std::shared_ptr<std::shared_mutex>
+        std::shared_ptr<boost::shared_mutex>
     >
     PageManager::get_page(Page::Key key) {
         std::shared_ptr<Page> page;
         Partition& partition = get_partition(key);
         {
-            std::shared_lock<std::shared_mutex> lock(partition.mutex);
-            if (page = get_page_in_partition(key, partition)) {
-                return { page, partition.locks.at(key) };
+            boost::shared_lock<boost::shared_mutex> lock(partition.mutex);
+            if (partition.pages.find(key) != partition.pages.end()) {
+                Partition::PageInfo& info = partition.pages.at(key);
+                info.marked.store(true, std::memory_order::memory_order_release);
+                return { info.page, info.mutex };
             }
         }
 
         page = load_page(key);
         if (page) {
-            std::unique_lock<std::shared_mutex> lock(partition.mutex);
-            add_page_to_partition(page, partition);
-            return { page, partition.locks.at(key) };
+            boost::unique_lock<boost::shared_mutex> lock(partition.mutex);
+            partition.pages.emplace(page->get_key(), page);
+            partition.page_order.push_back(page->get_key());
+            Partition::PageInfo& info = partition.pages.at(key);
+            info.marked.store(true, std::memory_order::memory_order_release);
+            return { info.page, info.mutex };
         }
 
         throw Exception(Exception::Reason::NO_SUCH_PAGE);
     }
 
     void PageManager::background_writer_task() {
+        bool advance = false;
+        size_t partition_index = 0;
+        std::list<Page::Key>::reverse_iterator iter =
+            _partitions[partition_index].page_order.rbegin();
         while (true) {
             std::this_thread::sleep_for(
                 std::chrono::milliseconds(_options.background_writer_delay));
+
+            size_t pages_written = 0;
+            for (size_t i = 0; i < NUM_PARTITIONS; i++) {
+                Partition& partition = _partitions[partition_index];
+                boost::shared_lock<boost::shared_mutex> lock(partition.mutex);
+                if (advance) {
+                    iter = partition.page_order.rbegin();
+                    advance = false;
+                }
+                while (iter != partition.page_order.rend() &&
+                        pages_written < _options.background_writer_max_pages) {
+                    Page::Key key = *iter;
+                    Partition::PageInfo& info = partition.pages.at(key);
+                    if (info.is_dirty.load(std::memory_order::memory_order_acquire)) {
+                        {
+                            boost::unique_lock<boost::shared_mutex> lock(*info.mutex);
+                            info.page->write_to_stream(_stream);
+                        }
+                        info.is_dirty.store(false, std::memory_order::memory_order_release);
+                        pages_written++;
+                    }
+                    iter++;
+                }
+                if (iter == partition.page_order.rend()) {
+                    partition_index++;
+                    advance = true;
+                }
+                if (pages_written == _options.background_writer_max_pages) break;
+            }
         }
     }
 
@@ -159,7 +174,7 @@ namespace diamond {
 
     PageManager::ExclusiveAccessor::ExclusiveAccessor(
         std::shared_ptr<Page> page,
-        std::shared_ptr<std::shared_mutex> mutex)
+        std::shared_ptr<boost::shared_mutex> mutex)
         : _page(page),
         _mutex(mutex) {
         _mutex->lock();
@@ -175,10 +190,16 @@ namespace diamond {
 
     PageManager::SharedAccessor::SharedAccessor(
         std::shared_ptr<const Page> page,
-        std::shared_ptr<std::shared_mutex> mutex)
+        std::shared_ptr<boost::shared_mutex> mutex)
         : _page(page),
         _mutex(mutex) {
         _mutex->lock_shared();
     }
+
+    PageManager::Partition::PageInfo::PageInfo(std::shared_ptr<Page> _page)
+        : page(_page),
+        mutex(std::make_shared<boost::shared_mutex>()),
+        marked(false),
+        is_dirty(false) {}
 
 } // namespace diamond

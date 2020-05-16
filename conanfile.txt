@@ -1,5 +1,9 @@
 [requires]
 glog/0.4.0
+boost/1.71.0@conan/stable
+
+[options]
+boost:shared=True
 
 [generators]
 cmake

@@ -91,6 +91,11 @@ namespace diamond {
 
         static Type get_offsets_type(Type type);
 
+        static std::shared_ptr<Page> new_data_page();
+        static std::shared_ptr<Page> new_data_offsets_page();
+        static std::shared_ptr<Page> new_node_page();
+        static std::shared_ptr<Page> new_node_offsets_page();
+
         static std::shared_ptr<Page> new_page_from_stream(std::istream& stream);
 
         ~Page();

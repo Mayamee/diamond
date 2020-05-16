@@ -22,6 +22,11 @@
 
 namespace diamond {
 
+    StorageEngine::StorageEngine(std::iostream& data_stream, const Options& options)
+        : _manager(data_stream, options.page_manager_options) {
+        initialize(data_stream);
+    }
+
     void StorageEngine::get(const Buffer& key, Buffer& val) {
         Page::Key page_key = Page::make_key(Page::NODE, 0);
         Page::Key data_page_key;
@@ -44,5 +49,12 @@ namespace diamond {
     }
 
     void StorageEngine::insert(const Buffer& key, const Buffer& val) {}
+
+    void StorageEngine::initialize(std::iostream& stream) {
+        if (stream.rdbuf()->in_avail() > 0) return;
+
+        std::shared_ptr<Page> root_data_offsets_page = Page::new_data_offsets_page();
+        std::shared_ptr<Page> root_node_offsets_page = Page::new_node_offsets_page();
+    }
 
 } // namespace diamond

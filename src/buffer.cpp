@@ -109,6 +109,8 @@ namespace diamond {
                 other._buffer = nullptr;
             }
         }
+
+        return *this;
     }
 
     bool Buffer::operator==(const Buffer& other) {

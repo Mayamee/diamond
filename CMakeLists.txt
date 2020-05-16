@@ -21,13 +21,20 @@ endif()
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup()
 
+find_package(Boost COMPONENTS thread REQUIRED)
+
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
+include_directories(${Boost_INCLUDE_DIRS})
 
 add_library(diamond SHARED
     src/buffer.cpp
     src/page.cpp
     src/page_manager.cpp
     src/storage_engine.cpp)
+
+target_link_libraries(diamond
+    pthread
+    ${Boost_LIBRARIES})
 
 if (DIAMOND_BUILD_TESTS)
     enable_testing()
