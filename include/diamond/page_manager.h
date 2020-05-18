@@ -86,8 +86,10 @@ namespace diamond {
 
         PageManager(std::iostream& stream, const Options& options);
 
-        ExclusiveAccessor get_exclusive_accessor(Page::Key key);
-        SharedAccessor get_shared_accessor(Page::Key key);
+        ExclusiveAccessor get_exclusive_accessor(Page::ID id);
+        SharedAccessor get_shared_accessor(Page::ID id);
+
+        void write_page(const std::shared_ptr<Page>& page);
 
         size_t evictions() const;
 
@@ -111,13 +113,8 @@ namespace diamond {
                 std::atomic<bool> is_dirty;
             };
 
-            std::list<Page::Key> page_order;
-            std::unordered_map<
-                Page::Key,
-                PageInfo,
-                Page::KeyHash,
-                Page::KeyEqual
-            > pages;
+            std::list<Page::ID> page_order;
+            std::unordered_map<Page::ID, PageInfo> pages;
         };
 
         std::array<Partition, NUM_PARTITIONS> _partitions;
@@ -126,15 +123,13 @@ namespace diamond {
 
         size_t _evictions;
 
-        Partition& get_partition(Page::Key key);
-
-        std::shared_ptr<Page> load_page(Page::Key key);
+        Partition& get_partition(Page::ID id);
 
         std::tuple<
             std::shared_ptr<Page>,
             std::shared_ptr<boost::shared_mutex>
         >
-        get_page(Page::Key key);
+        get_page(Page::ID id);
 
         void background_writer_task();
     };

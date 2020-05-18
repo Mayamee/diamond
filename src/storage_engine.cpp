@@ -24,37 +24,30 @@ namespace diamond {
 
     StorageEngine::StorageEngine(std::iostream& data_stream, const Options& options)
         : _manager(data_stream, options.page_manager_options) {
-        initialize(data_stream);
+        if (data_stream.rdbuf()->in_avail() == 0) {
+            _manager.write_page(Page::new_leaf_node_page(0));
+        }
     }
 
     void StorageEngine::get(const Buffer& key, Buffer& val) {
-        Page::Key page_key = Page::make_key(Page::NODE, 0);
-        Page::Key data_page_key;
-        size_t data_entry_index;
+        Page::ID page_id = 0;
+        // Page::Key data_page_key;
+        // size_t data_entry_index;
         while (true) {
-            PageManager::SharedAccessor accessor = _manager.get_shared_accessor(page_key);
+            PageManager::SharedAccessor accessor = _manager.get_shared_accessor(page_id);
             const std::shared_ptr<const Page>& page = accessor.page();
-            const Page::NodeEntry& entry = page->search_node_entries(key);
-            if (page->is_leaf_node()) {
-                data_page_key = entry.next_page_key();
-                data_entry_index = entry.next_data_index();
-                break;
-            } else {
-                page_key = entry.next_page_key();
-            }
+            Page::Type type = page->get_type();
+            if (type == Page::INTERNAL_NODE) {
+
+            } else if (type == Page::LEAF_NODE) {
+
+            } else { /* TODO: Add corruption exception type */ }
         }
 
-        PageManager::SharedAccessor accessor = _manager.get_shared_accessor(data_page_key);
-        val = accessor.page()->get_data_entry(data_entry_index);
+        // PageManager::SharedAccessor accessor = _manager.get_shared_accessor(data_page_key);
+        // val = accessor.page()->get_data_entry(data_entry_index);
     }
 
     void StorageEngine::insert(const Buffer& key, const Buffer& val) {}
-
-    void StorageEngine::initialize(std::iostream& stream) {
-        if (stream.rdbuf()->in_avail() > 0) return;
-
-        std::shared_ptr<Page> root_data_offsets_page = Page::new_data_offsets_page();
-        std::shared_ptr<Page> root_node_offsets_page = Page::new_node_offsets_page();
-    }
 
 } // namespace diamond

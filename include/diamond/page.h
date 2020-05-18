@@ -33,111 +33,79 @@ namespace diamond {
     public:
         static const uint16_t SIZE = 8192;
 
+        using ID = uint64_t;
+
         enum Type {
             DATA,
-            DATA_OFFSETS,
-            NODE,
-            NODE_OFFSETS,
-            // Special Type for some static methods,
-            // instance can never be of this type
-            NONE
+            INTERNAL_NODE,
+            LEAF_NODE
         };
 
-        using Key = std::tuple<Type, uint64_t>;
-
-        class NodeEntry {
+        class InternalNodeEntry {
         public:
-            NodeEntry(Buffer key, uint64_t data_id, size_t data_index);
-            NodeEntry(Buffer key, uint64_t node_id);
+            InternalNodeEntry(Buffer key, ID next_node_id);
 
             size_t key_size() const;
             const Buffer& key() const;
 
-            uint64_t next_data_id() const;
-            size_t next_data_index() const;
-
-            uint64_t next_node_id() const;
-
-            Page::Type next_type() const;
-            Page::Key next_page_key() const;
+            ID next_node_id() const;
 
         private:
             Buffer _key;
-
-            Page::Type _next_page_type;
-            union {
-                struct {
-                    uint64_t id;
-                    size_t index;
-                } _next_data_page;
-                uint64_t _next_node_page_id;
-            };
+            ID _next_node_id;
         };
 
-        struct KeyEqual {
-            bool operator()(const Key& lhs, const Key& rhs) const {
-                return std::get<0>(lhs) == std::get<0>(rhs) &&
-                    std::get<1>(lhs) == std::get<1>(rhs);
-            }
+        class LeafNodeEntry {
+        public:
+            LeafNodeEntry(Buffer key, ID next_data_id, size_t next_data_index);
+
+            size_t key_size() const;
+            const Buffer& key() const;
+
+            ID next_data_id() const;
+            size_t next_data_index() const;
+
+        private:
+            Buffer _key;
+            ID _next_data_id;
+            size_t _next_data_index;
         };
 
-        struct KeyHash {
-            uint64_t operator()(const Key& key) const {
-                return std::get<0>(key) ^ std::get<1>(key);
-            }
-        };
+        static std::shared_ptr<Page> new_data_page(ID id);
+        static std::shared_ptr<Page> new_internal_node_page(ID id);
+        static std::shared_ptr<Page> new_leaf_node_page(ID id);
 
-        static Key make_key(Type type, size_t id);
-
-        static Type get_offsets_type(Type type);
-
-        static std::shared_ptr<Page> new_data_page();
-        static std::shared_ptr<Page> new_data_offsets_page();
-        static std::shared_ptr<Page> new_node_page();
-        static std::shared_ptr<Page> new_node_offsets_page();
-
-        static std::shared_ptr<Page> new_page_from_stream(std::istream& stream);
+        static std::shared_ptr<Page> new_page_from_stream(ID id, std::istream& stream);
 
         ~Page();
 
         Type get_type() const;
-        uint64_t get_id() const;
-        Key get_key() const;
-
-        uint64_t get_offset() const;
+        ID get_id() const;
 
         size_t get_num_data_entries() const;
         const std::vector<Buffer>* get_data_entries() const;
         const Buffer& get_data_entry(size_t i) const;
 
-        size_t get_num_node_entries() const;
-        const std::vector<NodeEntry>* get_node_entries() const;
-        const NodeEntry& get_node_entry(size_t i) const;
-        const NodeEntry& search_node_entries(const Buffer& key) const;
-        bool is_leaf_node() const;
+        size_t get_num_internal_node_entries() const;
+        const std::vector<InternalNodeEntry>* get_internal_node_entries() const;
+        const InternalNodeEntry& get_internal_node_entry(size_t i) const;
 
-        size_t get_num_offsets() const;
-        const std::vector<size_t>* get_offsets() const;
-        uint64_t get_offset(size_t i) const;
-        uint64_t get_next_offsets() const;
+        size_t get_num_leaf_node_entries() const;
+        const std::vector<LeafNodeEntry>* get_leaf_node_entries() const;
+        const LeafNodeEntry& get_leaf_node_entry(size_t i) const;
 
         void write_to_stream(std::ostream& stream) const;
 
     private:
         Type _type;
-        uint64_t _id;
-        uint64_t _offset;
+        ID _id;
         union {
             std::vector<Buffer>* _data_entries;
+            std::vector<InternalNodeEntry>* _internal_node_entries;
             struct {
-                std::vector<NodeEntry>* entries;
-                bool is_leaf;
+                std::vector<LeafNodeEntry>* entries;
                 uint64_t next;
-            } _node;
-            struct {
-                std::vector<uint64_t>* offsets;
-                uint64_t next;
-            } _offsets;
+            } _leaf;
         };
 
         Page() = default;

@@ -36,8 +36,6 @@ namespace diamond {
 
     private:
         PageManager _manager;
-
-        void initialize(std::iostream& stream);
     };
 
 }
