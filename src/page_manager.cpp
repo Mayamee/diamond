@@ -128,11 +128,17 @@ namespace diamond {
     }
 
     PageManager::ExclusiveAccessor::~ExclusiveAccessor() {
-        _mutex->unlock();
+        if (_locked) _mutex->unlock();
     }
 
     const std::shared_ptr<Page>& PageManager::ExclusiveAccessor::page() const {
         return _page;
+    }
+
+    void PageManager::ExclusiveAccessor::unlock() {
+        if (!_locked) return;
+        _mutex->unlock();
+        _locked = false;
     }
 
     PageManager::ExclusiveAccessor::ExclusiveAccessor(
@@ -141,14 +147,21 @@ namespace diamond {
         : _page(page),
         _mutex(mutex) {
         _mutex->lock();
+        _locked = true;
     }
 
     PageManager::SharedAccessor::~SharedAccessor() {
-        _mutex->unlock_shared();
+        if (_locked) _mutex->unlock_shared();
     }
 
     const std::shared_ptr<const Page>& PageManager::SharedAccessor::page() const {
         return _page;
+    }
+
+    void PageManager::SharedAccessor::unlock() {
+        if (!_locked) return;
+        _mutex->unlock_shared();
+        _locked = false;
     }
 
     PageManager::SharedAccessor::SharedAccessor(
@@ -157,6 +170,7 @@ namespace diamond {
         : _page(page),
         _mutex(mutex) {
         _mutex->lock_shared();
+        _locked = true;
     }
 
     PageManager::Partition::PageInfo::PageInfo(std::shared_ptr<Page> _page)

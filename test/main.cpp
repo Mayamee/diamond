@@ -15,32 +15,9 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _DIAMOND_STORAGE_ENGINE_H
-#define _DIAMOND_STORAGE_ENGINE_H
+#include "gtest/gtest.h"
 
-#include "diamond/buffer.h"
-#include "diamond/page_manager.h"
-
-namespace diamond {
-
-    class StorageEngine {
-    public:
-        struct Options {
-            PageManager::Options page_manager_options;
-
-            Page::Compare compare_func = &Page::default_compare;
-        };
-
-        StorageEngine(std::iostream& data_stream, const Options& options);
-
-        Buffer get(const Buffer& key);
-        void insert(const Buffer& key, const Buffer& val);
-
-    private:
-        Options _options;
-        PageManager _manager;
-    };
-
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }
-
-#endif // _DIAMOND_STORAGE_ENGINE_H

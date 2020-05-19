@@ -19,6 +19,7 @@
 #define _DIAMOND_BUFFER_H
 
 #include <iostream>
+#include <string>
 #include <type_traits>
 
 #include "diamond/endian.h"
@@ -30,6 +31,7 @@ namespace diamond {
         Buffer();
         Buffer(size_t size);
         Buffer(size_t size, char* buffer);
+        Buffer(const std::string& str);
         Buffer(size_t size, std::istream& stream);
 
         Buffer(const Buffer& other);
@@ -49,8 +51,8 @@ namespace diamond {
         Buffer& operator=(const Buffer& other);
         Buffer& operator=(Buffer&& other);
 
-        bool operator==(const Buffer& other);
-        bool operator!=(const Buffer& other);
+        bool operator==(const Buffer& other) const;
+        bool operator!=(const Buffer& other) const;
 
     private:
         size_t _size;
@@ -65,6 +67,7 @@ namespace diamond {
             endian::Endianness endianness = endian::Endianness::BIG);
 
         size_t bytes_read() const;
+        size_t bytes_remaining() const;
 
         template <class T>
         typename std::enable_if<
@@ -99,6 +102,7 @@ namespace diamond {
             endian::Endianness endianness = endian::Endianness::BIG);
 
         size_t bytes_written() const;
+        size_t bytes_remaining() const;
 
         template <class T>
         typename std::enable_if<

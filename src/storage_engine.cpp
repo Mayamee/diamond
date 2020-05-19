@@ -17,35 +17,47 @@
 
 #include <cstring>
 
-#include "diamond/exception.h"
 #include "diamond/storage_engine.h"
+#include "diamond/exception.h"
+#include "diamond/logging.h"
 
 namespace diamond {
 
     StorageEngine::StorageEngine(std::iostream& data_stream, const Options& options)
-        : _manager(data_stream, options.page_manager_options) {
+        : _options(options), 
+        _manager(data_stream, options.page_manager_options) {
         if (data_stream.rdbuf()->in_avail() == 0) {
-            _manager.write_page(Page::new_leaf_node_page(0));
+            _manager.write_page(Page::new_leaf_node_page(1));
         }
     }
 
-    void StorageEngine::get(const Buffer& key, Buffer& val) {
-        Page::ID page_id = 0;
-        // Page::Key data_page_key;
-        // size_t data_entry_index;
+    Buffer StorageEngine::get(const Buffer& key) {
+        Page::ID page_id = 1;
         while (true) {
             PageManager::SharedAccessor accessor = _manager.get_shared_accessor(page_id);
             const std::shared_ptr<const Page>& page = accessor.page();
             Page::Type type = page->get_type();
-            if (type == Page::INTERNAL_NODE) {
-
-            } else if (type == Page::LEAF_NODE) {
-
-            } else { /* TODO: Add corruption exception type */ }
-        }
-
-        // PageManager::SharedAccessor accessor = _manager.get_shared_accessor(data_page_key);
-        // val = accessor.page()->get_data_entry(data_entry_index);
+            switch (type) {
+            case Page::INTERNAL_NODE: {
+                size_t i = page->search_internal_node_entries(key, _options.compare_func);
+                const Page::InternalNodeEntry& entry = page->get_internal_node_entry(i);
+                page_id = entry.next_node_id();
+                break;
+            }
+            case Page::LEAF_NODE: {
+                size_t i;
+                if (!page->find_leaf_node_entry(key, _options.compare_func, i)) return Buffer();
+                const Page::LeafNodeEntry& entry = page->get_leaf_node_entry(i);
+                Page::ID data_page_id = entry.next_data_id();
+                size_t data_entry_index = entry.next_data_index();
+                accessor.unlock();
+                PageManager::SharedAccessor data_accessor = _manager.get_shared_accessor(data_page_id);
+                return Buffer(accessor.page()->get_data_entry(data_entry_index).data());
+            }
+            default:
+                throw Exception(Exception::Reason::CORRUPTED_FILE);
+            }
+        }        
     }
 
     void StorageEngine::insert(const Buffer& key, const Buffer& val) {}

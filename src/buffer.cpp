@@ -36,6 +36,13 @@ namespace diamond {
         _buffer(buffer),
         _owns_buffer(false) {}
 
+    Buffer::Buffer(const std::string& str)
+        : _size(str.size()),
+        _buffer(new char[str.size()]),
+        _owns_buffer(true) {
+        std::strcpy(_buffer, str.c_str());
+    }
+
     Buffer::Buffer(size_t size, std::istream& stream)
         : _size(size),
         _buffer(new char[size]),
@@ -113,12 +120,12 @@ namespace diamond {
         return *this;
     }
 
-    bool Buffer::operator==(const Buffer& other) {
+    bool Buffer::operator==(const Buffer& other) const {
         if (_size != other._size) return false;
         return std::memcmp(_buffer, other._buffer, _size) == 0;
     }
 
-    bool Buffer::operator!=(const Buffer& other) {
+    bool Buffer::operator!=(const Buffer& other) const {
         return !(*this == other);
     }
 
@@ -129,6 +136,10 @@ namespace diamond {
 
     size_t BufferReader::bytes_read() const {
         return _ptr;
+    }
+
+    size_t BufferReader::bytes_remaining() const {
+        return _buffer.size() - _ptr;
     }
 
     void BufferReader::read(Buffer& buffer) {
@@ -147,6 +158,10 @@ namespace diamond {
 
     size_t BufferWriter::bytes_written() const {
         return _ptr;
+    }
+
+    size_t BufferWriter::bytes_remaining() const {
+        return _buffer.size() - _ptr;
     }
 
     void BufferWriter::write(const Buffer& buffer) {

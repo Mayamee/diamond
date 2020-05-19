@@ -19,7 +19,7 @@ elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 endif()
 
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup()
+conan_basic_setup(TARGETS)
 
 find_package(Boost COMPONENTS thread REQUIRED)
 
@@ -28,14 +28,24 @@ include_directories(${Boost_INCLUDE_DIRS})
 
 add_library(diamond SHARED
     src/buffer.cpp
+    src/exception.cpp
     src/page.cpp
     src/page_manager.cpp
     src/storage_engine.cpp)
 
 target_link_libraries(diamond
     pthread
-    ${Boost_LIBRARIES})
+    ${Boost_LIBRARIES}
+    CONAN_PKG::glog)
 
 if (DIAMOND_BUILD_TESTS)
+    include (GoogleTest)
     enable_testing()
+    add_executable(diamond_tests
+        test/main.cpp
+        test/page.cpp)
+    target_link_libraries(diamond_tests
+        diamond
+        CONAN_PKG::gtest)
+    gtest_discover_tests(diamond_tests)
 endif()

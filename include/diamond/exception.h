@@ -26,10 +26,11 @@ namespace diamond {
     class Exception : public std::exception {
     public:
         enum class Reason {
+            CORRUPTED_FILE,
             NO_SUCH_PAGE
         };
 
-        Exception(Reason code);
+        Exception(Reason reason);
 
         Reason reason() const;
 

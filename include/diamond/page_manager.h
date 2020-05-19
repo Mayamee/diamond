@@ -56,7 +56,10 @@ namespace diamond {
 
             const std::shared_ptr<Page>& page() const;
 
+            void unlock();
+
         private:
+            bool _locked;
             std::shared_ptr<Page> _page;
             std::shared_ptr<boost::shared_mutex> _mutex;
 
@@ -73,7 +76,10 @@ namespace diamond {
 
             const std::shared_ptr<const Page>& page() const;
 
+            void unlock();
+
         private:
+            bool _locked;
             std::shared_ptr<const Page> _page;
             std::shared_ptr<boost::shared_mutex> _mutex;
 
