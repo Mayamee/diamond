@@ -77,20 +77,21 @@ namespace diamond {
 
         class LeafNodeEntry {
         public:
-            LeafNodeEntry(Buffer key, ID next_data_id, size_t next_data_index);
+            LeafNodeEntry(Buffer key, ID data_id, size_t data_index);
 
             size_t key_size() const;
             const Buffer& key() const;
 
-            ID next_data_id() const;
-            size_t next_data_index() const;
+            ID data_id() const;
+            size_t data_index() const;
 
         private:
             Buffer _key;
-            ID _next_data_id;
-            size_t _next_data_index;
+            ID _data_id;
+            size_t _data_index;
         };
 
+        static std::shared_ptr<Page> new_page(ID id, Type type);
         static std::shared_ptr<Page> new_data_page(ID id);
         static std::shared_ptr<Page> new_internal_node_page(ID id);
         static std::shared_ptr<Page> new_leaf_node_page(ID id);
@@ -103,10 +104,14 @@ namespace diamond {
 
         Type get_type() const;
         ID get_id() const;
+        uint16_t get_size() const;
+        uint16_t get_remaining_space() const;
+        size_t header_size() const;
 
         size_t get_num_data_entries() const;
         const std::vector<DataEntry>* get_data_entries() const;
         const DataEntry& get_data_entry(size_t i) const;
+        void insert_data_entry(const Buffer& data, ID overflow_id = 0, size_t overflow_index = 0);
 
         size_t get_num_internal_node_entries() const;
         const std::vector<InternalNodeEntry>* get_internal_node_entries() const;
@@ -118,12 +123,14 @@ namespace diamond {
         const std::vector<LeafNodeEntry>* get_leaf_node_entries() const;
         const LeafNodeEntry& get_leaf_node_entry(size_t i) const;
         bool find_leaf_node_entry(const Buffer& key, Compare compare, size_t& res) const;
+        void insert_leaf_node_entry(const Buffer& key, ID data_id, size_t data_index);
 
         void write_to_stream(std::ostream& stream) const;
 
     private:
         Type _type;
         ID _id;
+        uint16_t _size;
         union {
             std::vector<DataEntry>* _data_entries;
             std::vector<InternalNodeEntry>* _internal_node_entries;
@@ -134,6 +141,14 @@ namespace diamond {
         };
 
         Page() = default;
+
+        void ensure_type_is(Type type) const {
+            if (_type != type) throw std::logic_error("invalid type");
+        }
+
+        void ensure_space_available(size_t space) {
+            if (space > get_remaining_space()) throw std::logic_error("not enough space in page");
+        }
     };
 
 } // namespace diamond

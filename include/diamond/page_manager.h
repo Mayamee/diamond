@@ -96,6 +96,7 @@ namespace diamond {
         SharedAccessor get_shared_accessor(Page::ID id);
 
         void write_page(const std::shared_ptr<Page>& page);
+        void write_pages(const std::vector<std::shared_ptr<Page>>& pages);
 
         size_t evictions() const;
 

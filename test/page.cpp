@@ -24,49 +24,145 @@
 namespace {
 
     TEST(page_tests, write_and_read_data_page) {
+        using TestInput = std::tuple<diamond::Buffer, diamond::Page::ID, size_t>;
+        std::vector<TestInput> inputs = {
+            { diamond::Buffer("wowowwowowoww"), 0, 0 },
+            { diamond::Buffer("it is indeed a buffer"), 0, 0 },
+            { diamond::Buffer("this is a buffer"), 0, 0 },
+            { diamond::Buffer("hello world"), 0, 0 }
+        };
+
         std::stringstream ss;
 
         std::shared_ptr<diamond::Page> page1 =
             diamond::Page::new_data_page(1);
+        size_t expected_size = page1->header_size();
+
+        ASSERT_EQ(page1->get_type(), diamond::Page::DATA);
+
+        for (size_t i = 0; i < inputs.size(); i++) {
+            const TestInput& input = inputs.at(i);
+            const diamond::Buffer& buffer = std::get<0>(input);
+            diamond::Page::ID overflow_id = std::get<1>(input);
+            size_t overflow_index = std::get<2>(input);
+            page1->insert_data_entry(buffer, overflow_id, overflow_index);
+            expected_size += buffer.size();
+            if (overflow_id) expected_size += sizeof(overflow_id) + sizeof(overflow_index);
+        }
+
+        ASSERT_EQ(page1->get_num_data_entries(), inputs.size());
+        EXPECT_EQ(page1->get_size(), expected_size);
+        EXPECT_EQ(page1->get_remaining_space(), diamond::Page::SIZE - expected_size);
 
         page1->write_to_stream(ss);
 
         std::shared_ptr<diamond::Page> page2 =
             diamond::Page::new_page_from_stream(1, ss);
 
-        ASSERT_EQ(page1->get_type(), diamond::Page::DATA);
-        ASSERT_EQ(page1->get_type(), page2->get_type());
-        ASSERT_EQ(page1->get_num_data_entries(), page2->get_num_data_entries());
+        ASSERT_EQ(page2->get_type(), diamond::Page::DATA);
+        ASSERT_EQ(page2->get_num_data_entries(), inputs.size());
+        EXPECT_EQ(page2->get_size(), expected_size);
         for (size_t i = 0; i < page1->get_num_data_entries(); i++) {
-            const diamond::Page::DataEntry& entry1 = page1->get_data_entry(i);
-            const diamond::Page::DataEntry& entry2 = page2->get_data_entry(i);
+            const TestInput& input = inputs.at(i);
+            const diamond::Page::DataEntry& entry = page2->get_data_entry(i);
 
-            EXPECT_EQ(entry1.data(), entry2.data());
-            EXPECT_EQ(entry1.overflow_id(), entry2.overflow_id());
-            EXPECT_EQ(entry1.overflow_index(), entry2.overflow_index());
+            EXPECT_EQ(entry.data(), std::get<0>(input));
+            EXPECT_EQ(entry.overflow_id(), std::get<1>(input));
+            EXPECT_EQ(entry.overflow_index(), std::get<2>(input));
         }
     }
 
     TEST(page_tests, write_and_read_internal_node_page) {
+        using TestInput = std::tuple<diamond::Buffer, diamond::Page::ID>;
+        std::vector<TestInput> inputs = {
+            { diamond::Buffer("key1"), 2 },
+            { diamond::Buffer("key2"), 3 },
+            { diamond::Buffer("key3"), 4 },
+            { diamond::Buffer("key4"), 5 }
+        };
+
         std::stringstream ss;
 
         std::shared_ptr<diamond::Page> page1 =
             diamond::Page::new_internal_node_page(1);
+        size_t expected_size = page1->header_size();
+
+        ASSERT_EQ(page1->get_type(), diamond::Page::INTERNAL_NODE);
+
+        for (size_t i = 0; i < inputs.size(); i++) {
+            const TestInput& input = inputs.at(i);
+            const diamond::Buffer& buffer = std::get<0>(input);
+            diamond::Page::ID next_node_id = std::get<1>(input);
+            page1->insert_internal_node_entry(buffer, next_node_id);
+            expected_size += buffer.size() + sizeof(next_node_id);
+        }
+
+        ASSERT_EQ(page1->get_num_internal_node_entries(), inputs.size());
+        EXPECT_EQ(page1->get_size(), expected_size);
+        EXPECT_EQ(page1->get_remaining_space(), diamond::Page::SIZE - expected_size);
 
         page1->write_to_stream(ss);
 
         std::shared_ptr<diamond::Page> page2 =
             diamond::Page::new_page_from_stream(1, ss);
 
-        ASSERT_EQ(page1->get_type(), diamond::Page::INTERNAL_NODE);
-        ASSERT_EQ(page1->get_type(), page2->get_type());
-        ASSERT_EQ(page1->get_num_internal_node_entries(), page2->get_num_internal_node_entries());
+        ASSERT_EQ(page2->get_type(), diamond::Page::INTERNAL_NODE);
+        ASSERT_EQ(page2->get_num_internal_node_entries(), inputs.size());
+        EXPECT_EQ(page2->get_size(), expected_size);
         for (size_t i = 0; i < page1->get_num_internal_node_entries(); i++) {
-            const diamond::Page::InternalNodeEntry& entry1 = page1->get_internal_node_entry(i);
-            const diamond::Page::InternalNodeEntry& entry2 = page2->get_internal_node_entry(i);
+            const TestInput& input = inputs.at(i);
+            const diamond::Page::InternalNodeEntry& entry = page2->get_internal_node_entry(i);
 
-            EXPECT_EQ(entry1.key(), entry2.key());
-            EXPECT_EQ(entry1.next_node_id(), entry2.next_node_id());
+            EXPECT_EQ(entry.key(), std::get<0>(input));
+            EXPECT_EQ(entry.next_node_id(), std::get<1>(input));
+        }
+    }
+
+    TEST(page_tests, write_and_read_leaf_node_page) {
+        using TestInput = std::tuple<diamond::Buffer, diamond::Page::ID, size_t>;
+        std::vector<TestInput> inputs = {
+            { diamond::Buffer("key1"), 2, 0 },
+            { diamond::Buffer("key2"), 2, 1 },
+            { diamond::Buffer("key3"), 2, 2 },
+            { diamond::Buffer("key4"), 2, 3 }
+        };
+
+        std::stringstream ss;
+
+        std::shared_ptr<diamond::Page> page1 =
+            diamond::Page::new_leaf_node_page(1);
+        size_t expected_size = page1->header_size();
+
+        ASSERT_EQ(page1->get_type(), diamond::Page::LEAF_NODE);
+
+        for (size_t i = 0; i < inputs.size(); i++) {
+            const TestInput& input = inputs.at(i);
+            const diamond::Buffer& buffer = std::get<0>(input);
+            diamond::Page::ID data_id = std::get<1>(input);
+            size_t data_index = std::get<2>(input);
+            page1->insert_leaf_node_entry(buffer, data_id, data_index);
+            expected_size += buffer.size() + sizeof(data_index) + sizeof(data_id);
+        }
+
+        ASSERT_EQ(page1->get_num_leaf_node_entries(), inputs.size());
+        EXPECT_EQ(page1->get_size(), expected_size);
+        EXPECT_EQ(page1->get_remaining_space(), diamond::Page::SIZE - expected_size);
+
+        page1->write_to_stream(ss);
+
+        std::shared_ptr<diamond::Page> page2 =
+            diamond::Page::new_page_from_stream(1, ss);
+
+        ASSERT_EQ(page2->get_type(), diamond::Page::LEAF_NODE);
+        ASSERT_EQ(page2->get_num_leaf_node_entries(), inputs.size());
+        EXPECT_EQ(page2->get_size(), expected_size);
+        for (size_t i = 0; i < inputs.size(); i++) {
+            const TestInput& input = inputs.at(i);
+            const diamond::Page::LeafNodeEntry& entry = page2->get_leaf_node_entry(i);
+
+            EXPECT_EQ(entry.key(), std::get<0>(input));
+            EXPECT_EQ(entry.data_id(), std::get<1>(input));
+            EXPECT_EQ(entry.data_index(), std::get<2>(input));
         }
     }
 

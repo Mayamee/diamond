@@ -35,8 +35,7 @@ add_library(diamond SHARED
 
 target_link_libraries(diamond
     pthread
-    ${Boost_LIBRARIES}
-    CONAN_PKG::glog)
+    ${Boost_LIBRARIES})
 
 if (DIAMOND_BUILD_TESTS)
     include (GoogleTest)

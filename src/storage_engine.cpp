@@ -19,7 +19,6 @@
 
 #include "diamond/storage_engine.h"
 #include "diamond/exception.h"
-#include "diamond/logging.h"
 
 namespace diamond {
 
@@ -48,8 +47,8 @@ namespace diamond {
                 size_t i;
                 if (!page->find_leaf_node_entry(key, _options.compare_func, i)) return Buffer();
                 const Page::LeafNodeEntry& entry = page->get_leaf_node_entry(i);
-                Page::ID data_page_id = entry.next_data_id();
-                size_t data_entry_index = entry.next_data_index();
+                Page::ID data_page_id = entry.data_id();
+                size_t data_entry_index = entry.data_index();
                 accessor.unlock();
                 PageManager::SharedAccessor data_accessor = _manager.get_shared_accessor(data_page_id);
                 return Buffer(accessor.page()->get_data_entry(data_entry_index).data());

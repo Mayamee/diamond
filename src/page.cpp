@@ -21,49 +21,48 @@
 #include <utility>
 
 #include "diamond/buffer.h"
-#include "diamond/logging.h"
 #include "diamond/page.h"
 
 namespace diamond {
 
-    std::shared_ptr<Page> Page::new_data_page(ID id) {
-        CHECK_GT(id, (ID)0) << "page ids must start at 1";
+    std::shared_ptr<Page> Page::new_page(ID id, Type type) {
+        if (id == 0) throw std::invalid_argument("page ids must be greater than 0");
+
         std::shared_ptr<Page> page(new Page);
-
-        page->_type = DATA;
         page->_id = id;
-
-        page->_data_entries = new std::vector<DataEntry>();
+        page->_type = type;
+        page->_size = page->header_size();
+        
+        switch (type) {
+        case DATA:
+            page->_data_entries = new std::vector<DataEntry>();
+            break;
+        case INTERNAL_NODE:
+            page->_internal_node_entries = new std::vector<InternalNodeEntry>();
+            break;
+        case LEAF_NODE:
+            page->_leaf.next = 0;
+            page->_leaf.entries = new std::vector<LeafNodeEntry>();
+            break;
+        }
 
         return page;
+    }
+
+    std::shared_ptr<Page> Page::new_data_page(ID id) {
+        return new_page(id, DATA);
     }
 
     std::shared_ptr<Page> Page::new_internal_node_page(ID id) {
-        CHECK_GT(id, (ID)0) << "page ids must start at 1";
-        std::shared_ptr<Page> page(new Page);
-
-        page->_type = INTERNAL_NODE;
-        page->_id = id;
-
-        page->_internal_node_entries = new std::vector<InternalNodeEntry>();
-
-        return page;
+        return new_page(id, INTERNAL_NODE);
     }
 
     std::shared_ptr<Page> Page::new_leaf_node_page(ID id) {
-        CHECK_GT(id, (ID)0) << "page ids must start at 1";
-        std::shared_ptr<Page> page(new Page);
-
-        page->_type = LEAF_NODE;
-        page->_id = id;
-
-        page->_leaf.entries = new std::vector<LeafNodeEntry>();
-
-        return page;
+        return new_page(id, LEAF_NODE);
     }
 
     std::shared_ptr<Page> Page::new_page_from_stream(ID id, std::istream& stream) {
-        CHECK_GT(id, (ID)0) << "page ids must start at 1";
+        if (id == 0) throw std::invalid_argument("page ids must be greater than 0");
         stream.seekg(SIZE * (id - 1));
 
         Buffer buffer(SIZE, stream);
@@ -73,6 +72,7 @@ namespace diamond {
 
         page->_id = id;
         page->_type = buffer_reader.read<Type>();
+        page->_size = page->header_size();
 
         switch (page->_type) {
         case DATA: {
@@ -85,17 +85,20 @@ namespace diamond {
                     ID overflow_id;
                     size_t overflow_index;
 
-                    Buffer data(rem - (sizeof(overflow_id) + sizeof(overflow_index)));
+                    size_t to_read = rem - (sizeof(overflow_id) + sizeof(overflow_index));
+                    Buffer data(to_read);
                     buffer_reader.read(data);
 
                     overflow_id = buffer_reader.read<ID>();
                     overflow_index = buffer_reader.read<size_t>();
 
                     page->_data_entries->emplace_back(std::move(data), overflow_id, overflow_index);
+                    page->_size += to_read + sizeof(overflow_id) + sizeof(overflow_index);
                 } else {
                     Buffer data(data_size);
                     buffer_reader.read(data);
                     page->_data_entries->emplace_back(std::move(data));
+                    page->_size += data_size;
                 }
             }
             break;
@@ -111,6 +114,7 @@ namespace diamond {
                 buffer_reader.read(key);
 
                 page->_internal_node_entries->emplace_back(std::move(key), next_node_id);
+                page->_size += key_size + sizeof(next_node_id);
             }
             break;
         }
@@ -127,6 +131,7 @@ namespace diamond {
                 buffer_reader.read(key);
 
                 page->_leaf.entries->emplace_back(std::move(key), data_id, data_index);
+                page->_size += key_size + sizeof(data_id) + sizeof(data_index);
             }
             break;
         }
@@ -168,38 +173,68 @@ namespace diamond {
         return _id;
     }
 
+    uint16_t Page::get_size() const {
+        return _size;
+    }
+
+    uint16_t Page::get_remaining_space() const {
+        return SIZE - _size;
+    }
+
+    size_t Page::header_size() const {
+        size_t size = sizeof(Type);
+        switch (_type) {
+        case DATA:
+            return size + sizeof(size_t);
+        case INTERNAL_NODE:
+            return size + sizeof(size_t);
+        case LEAF_NODE:
+            return size + sizeof(ID) + sizeof(size_t);
+        }
+    }
+
     size_t Page::get_num_data_entries() const {
-        CHECK_EQ(_type, DATA);
+        ensure_type_is(DATA);
         return _data_entries->size();
     }
 
     const std::vector<Page::DataEntry>* Page::get_data_entries() const {
-        CHECK_EQ(_type, DATA);
+        ensure_type_is(DATA);
         return _data_entries;
     }
 
     const Page::DataEntry& Page::get_data_entry(size_t i) const {
-        CHECK_EQ(_type, DATA);
+        ensure_type_is(DATA);
         return _data_entries->at(i);
     }
 
+    void Page::insert_data_entry(const Buffer& data, ID overflow_id, size_t overflow_index) {
+        ensure_type_is(DATA);
+        size_t space = data.size();
+        if (overflow_id > 0) space += sizeof(overflow_id) + sizeof(overflow_index);
+        ensure_space_available(space);
+
+        _data_entries->emplace_back(data, overflow_id, overflow_index);
+        _size += space;
+    }
+
     size_t Page::get_num_internal_node_entries() const {
-        CHECK_EQ(_type, INTERNAL_NODE);
+        ensure_type_is(INTERNAL_NODE);
         return _internal_node_entries->size();
     }
 
     const std::vector<Page::InternalNodeEntry>* Page::get_internal_node_entries() const {
-        CHECK_EQ(_type, INTERNAL_NODE);
+        ensure_type_is(INTERNAL_NODE);
         return _internal_node_entries;
     }
 
     const Page::InternalNodeEntry& Page::get_internal_node_entry(size_t i) const {
-        CHECK_EQ(_type, INTERNAL_NODE);
+        ensure_type_is(INTERNAL_NODE);
         return _internal_node_entries->at(i);
     }
 
     size_t Page::search_internal_node_entries(const Buffer& key, Compare compare) const {
-        CHECK_EQ(_type, INTERNAL_NODE);
+        ensure_type_is(INTERNAL_NODE);
         size_t n = _internal_node_entries->size();
         for (size_t i = 0; i < n - 1; i++) {
             if (compare(_internal_node_entries->at(i).key(), key) > 0) {
@@ -210,26 +245,31 @@ namespace diamond {
     }
 
     void Page::insert_internal_node_entry(const Buffer& key, ID next_node_id) {
-        CHECK_EQ(_type, INTERNAL_NODE);
+        ensure_type_is(INTERNAL_NODE);
+        size_t space = key.size() + sizeof(next_node_id);
+        ensure_space_available(space);
+
+        _internal_node_entries->emplace_back(key, next_node_id);
+        _size += space;
     }
 
     size_t Page::get_num_leaf_node_entries() const {
-        CHECK_EQ(_type, LEAF_NODE);
+        ensure_type_is(LEAF_NODE);
         return _leaf.entries->size();
     }
 
     const std::vector<Page::LeafNodeEntry>* Page::get_leaf_node_entries() const {
-        CHECK_EQ(_type, LEAF_NODE);
+        ensure_type_is(LEAF_NODE);
         return _leaf.entries;
     }
 
     const Page::LeafNodeEntry& Page::get_leaf_node_entry(size_t i) const {
-        CHECK_EQ(_type, LEAF_NODE);
+        ensure_type_is(LEAF_NODE);
         return _leaf.entries->at(i);
     }
 
     bool Page::find_leaf_node_entry(const Buffer& key, Compare compare, size_t& res) const {
-        CHECK_EQ(_type, LEAF_NODE);
+        ensure_type_is(LEAF_NODE);
         size_t n = _leaf.entries->size();
         for (size_t i = 0; i < n; i++) {
             if (compare(_leaf.entries->at(i).key(), key) == 0) {
@@ -238,6 +278,15 @@ namespace diamond {
             }
         }
         return false;
+    }
+
+    void Page::insert_leaf_node_entry(const Buffer& key, ID data_id, size_t data_index) {
+        ensure_type_is(LEAF_NODE);
+        size_t space = key.size() + sizeof(data_id) + sizeof(data_index);
+        ensure_space_available(space);
+
+        _leaf.entries->emplace_back(key, data_id, data_index);
+        _size += space;
     }
 
     void Page::write_to_stream(std::ostream& stream) const {
@@ -277,13 +326,14 @@ namespace diamond {
             break;
         }
         case LEAF_NODE: {
+            buffer_writer.write<ID>(_leaf.next);
             size_t num_entries = _leaf.entries->size();
             buffer_writer.write<size_t>(num_entries);
             for (size_t i = 0; i < num_entries; i++) {
                 const LeafNodeEntry& entry = _leaf.entries->at(i);
 
-                buffer_writer.write<ID>(entry.next_data_id());
-                buffer_writer.write<size_t>(entry.next_data_index());
+                buffer_writer.write<ID>(entry.data_id());
+                buffer_writer.write<size_t>(entry.data_index());
 
                 buffer_writer.write<size_t>(entry.key_size());
                 buffer_writer.write(entry.key());
@@ -298,8 +348,7 @@ namespace diamond {
     Page::InternalNodeEntry::InternalNodeEntry(Buffer key, ID next_node_id)
         : _key(std::move(key)),
         _next_node_id(next_node_id) {
-        CHECK_GT(Page::MAX_KEY_SIZE, _key.size()) 
-            << "key must be smaller than " << Page::MAX_KEY_SIZE << " bytes";
+        if (_key.size() >= Page::MAX_KEY_SIZE) throw std::invalid_argument("key is too large");
     }
 
     size_t Page::InternalNodeEntry::key_size() const {
@@ -314,12 +363,11 @@ namespace diamond {
         return _next_node_id;
     }
 
-    Page::LeafNodeEntry::LeafNodeEntry(Buffer key, ID next_data_id, ID next_data_index)
+    Page::LeafNodeEntry::LeafNodeEntry(Buffer key, ID data_id, ID data_index)
         : _key(std::move(key)),
-        _next_data_id(next_data_id),
-        _next_data_index(next_data_index) {
-        CHECK_GT(Page::MAX_KEY_SIZE, _key.size())
-            << "key must be smaller than " << Page::MAX_KEY_SIZE << " bytes";
+        _data_id(data_id),
+        _data_index(data_index) {
+        if (_key.size() >= Page::MAX_KEY_SIZE) throw std::invalid_argument("key is too large");
     }
 
     size_t Page::LeafNodeEntry::key_size() const {
@@ -330,20 +378,19 @@ namespace diamond {
         return _key;
     }
 
-    Page::ID Page::LeafNodeEntry::next_data_id() const {
-        return _next_data_id;
+    Page::ID Page::LeafNodeEntry::data_id() const {
+        return _data_id;
     }
 
-    Page::ID Page::LeafNodeEntry::next_data_index() const {
-        return _next_data_index;
+    Page::ID Page::LeafNodeEntry::data_index() const {
+        return _data_index;
     }
 
     Page::DataEntry::DataEntry(Buffer data, ID overflow_id, size_t overflow_index)
         : _data(std::move(data)),
         _overflow_id(overflow_id),
         _overflow_index(overflow_index) {
-        CHECK_GT(Page::SIZE, _data.size())
-            << "data must be smaller than " << Page::SIZE << " bytes";
+        if (_data.size() >= Page::SIZE) throw std::invalid_argument("data is too large");
     }
 
     size_t Page::DataEntry::data_size() const {
