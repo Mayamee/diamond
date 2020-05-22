@@ -291,10 +291,15 @@ namespace diamond {
 
     void Page::write_to_stream(std::ostream& stream) const {
         Buffer buffer(Page::SIZE);
+        write_to_buffer(buffer);
+        buffer.write_to_stream(stream);
+    }
+
+    void Page::write_to_buffer(Buffer& buffer) const {
+        if (buffer.size() < _size) throw std::logic_error("buffer is too small to fit entire page data.");
         BufferWriter buffer_writer(buffer);
 
         buffer_writer.write<Type>(_type);
-
         switch (_type) {
         case DATA: {
             size_t num_entries = _data_entries->size();
@@ -341,8 +346,6 @@ namespace diamond {
             break;
         }
         }
-
-        buffer.write_to_stream(stream);
     }
 
     Page::InternalNodeEntry::InternalNodeEntry(Buffer key, ID next_node_id)

@@ -126,6 +126,7 @@ namespace diamond {
         void insert_leaf_node_entry(const Buffer& key, ID data_id, size_t data_index);
 
         void write_to_stream(std::ostream& stream) const;
+        void write_to_buffer(Buffer& buffer) const;
 
     private:
         Type _type;

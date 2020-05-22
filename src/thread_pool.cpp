@@ -15,28 +15,11 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _DIAMOND_STORAGE_ENGINE_H
-#define _DIAMOND_STORAGE_ENGINE_H
-
-#include "diamond/buffer.h"
-#include "diamond/page_manager.h"
+#include "diamond/thread_pool.h"
 
 namespace diamond {
 
-    class StorageEngine {
-    public:
-        StorageEngine(
-            PageManager& page_manager,
-            Page::Compare compare_func = &Page::default_compare);
+    boost::asio::thread_pool ThreadPool::_pool;
+    boost::asio::io_service ThreadPool::_service;
 
-        Buffer get(const Buffer& key);
-        void insert(const Buffer& key, const Buffer& val);
-
-    private:
-        PageManager& _manager;
-        Page::Compare _compare_func;
-    };
-
-}
-
-#endif // _DIAMOND_STORAGE_ENGINE_H
+} // namespace diamond

@@ -20,35 +20,21 @@
 
 #include <array>
 #include <atomic>
-#include <ctime>
 #include <iostream>
 #include <list>
-#include <thread>
 #include <tuple>
 #include <unordered_map>
 
 #include <boost/thread.hpp>
 
 #include "diamond/page.h"
+#include "diamond/page_writer.h"
 
 namespace diamond {
 
     class PageManager {
     public:
-        struct Options {
-            Options() = default;
-
-            // Delay between page writing.
-            uint32_t background_writer_delay = 200;
-
-            // The maximum number of pages the background
-            // writer will flush.
-            uint32_t background_writer_max_pages = 100;
-
-            // The memory usage at which the manager will
-            // begin to evict pages.
-            float eviction_max_memory_usage = 95;
-        };
+        static const uint8_t NUM_PARTITIONS = 128;
 
         class ExclusiveAccessor {
         public:
@@ -66,8 +52,8 @@ namespace diamond {
             friend class PageManager;
 
             ExclusiveAccessor(
-                std::shared_ptr<Page> page,
-                std::shared_ptr<boost::shared_mutex> mutex);
+                std::shared_ptr<Page>& page,
+                std::shared_ptr<boost::shared_mutex>& mutex);
         };
 
         class SharedAccessor {
@@ -86,11 +72,11 @@ namespace diamond {
             friend class PageManager;
 
             SharedAccessor(
-                std::shared_ptr<const Page> page,
-                std::shared_ptr<boost::shared_mutex> mutex);
+                std::shared_ptr<Page>& page,
+                std::shared_ptr<boost::shared_mutex>& mutex);
         };
 
-        PageManager(std::iostream& stream, const Options& options);
+        PageManager(std::iostream& stream, PageWriterFactory& page_writer_factory);
 
         ExclusiveAccessor get_exclusive_accessor(Page::ID id);
         SharedAccessor get_shared_accessor(Page::ID id);
@@ -98,35 +84,29 @@ namespace diamond {
         void write_page(const std::shared_ptr<Page>& page);
         void write_pages(const std::vector<std::shared_ptr<Page>>& pages);
 
+        bool is_page_managed(Page::ID id);
+
         size_t evictions() const;
 
     private:
-        static const uint8_t NUM_PARTITIONS = 128;
-
         std::iostream& _stream;
-        Options _options;
 
         struct Partition {
-            Partition() = default;
-
-            boost::shared_mutex mutex;
-
             struct PageInfo {
                 PageInfo(std::shared_ptr<Page> _page);
 
                 std::shared_ptr<Page> page;
                 std::shared_ptr<boost::shared_mutex> mutex;
                 std::atomic<bool> marked;
-                std::atomic<bool> is_dirty;
             };
 
+            boost::shared_mutex mutex;
             std::list<Page::ID> page_order;
             std::unordered_map<Page::ID, PageInfo> pages;
+            std::shared_ptr<PageWriter> page_writer;
         };
 
         std::array<Partition, NUM_PARTITIONS> _partitions;
-
-        std::thread _background_writer;
 
         size_t _evictions;
 
@@ -137,8 +117,6 @@ namespace diamond {
             std::shared_ptr<boost::shared_mutex>
         >
         get_page(Page::ID id);
-
-        void background_writer_task();
     };
 
 } // namespace diamond

@@ -15,28 +15,23 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _DIAMOND_STORAGE_ENGINE_H
-#define _DIAMOND_STORAGE_ENGINE_H
+#include "gmock/gmock.h"
 
-#include "diamond/buffer.h"
-#include "diamond/page_manager.h"
+#include "diamond/page_writer.h"
 
-namespace diamond {
+namespace {
 
-    class StorageEngine {
+    class MockPageWriter : public diamond::PageWriter {
     public:
-        StorageEngine(
-            PageManager& page_manager,
-            Page::Compare compare_func = &Page::default_compare);
+        MockPageWriter(std::ostream& stream)
+            : diamond::PageWriter(stream) {}
 
-        Buffer get(const Buffer& key);
-        void insert(const Buffer& key, const Buffer& val);
+        MOCK_METHOD(void, write, (const std::shared_ptr<diamond::Page>& page), (override));
+    };
 
-    private:
-        PageManager& _manager;
-        Page::Compare _compare_func;
+    class MockPageWriterFactory : public diamond::PageWriterFactory {
+    public:
+        MOCK_METHOD(std::shared_ptr<diamond::PageWriter>, create, (std::ostream& stream), (const override));
     };
 
 }
-
-#endif // _DIAMOND_STORAGE_ENGINE_H

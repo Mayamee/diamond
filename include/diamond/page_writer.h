@@ -15,28 +15,30 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _DIAMOND_STORAGE_ENGINE_H
-#define _DIAMOND_STORAGE_ENGINE_H
+#ifndef _DIAMOND_PAGE_WRITER_H
+#define _DIAMOND_PAGE_WRITER_H
 
-#include "diamond/buffer.h"
-#include "diamond/page_manager.h"
+#include <iostream>
+
+#include "diamond/page.h"
 
 namespace diamond {
 
-    class StorageEngine {
+    class PageWriter {
     public:
-        StorageEngine(
-            PageManager& page_manager,
-            Page::Compare compare_func = &Page::default_compare);
+        PageWriter(std::ostream& stream);
 
-        Buffer get(const Buffer& key);
-        void insert(const Buffer& key, const Buffer& val);
+        virtual void write(const std::shared_ptr<Page>& page) = 0;
 
-    private:
-        PageManager& _manager;
-        Page::Compare _compare_func;
+    protected:
+        std::ostream& _stream;
     };
 
-}
+    class PageWriterFactory {
+    public:
+        virtual std::shared_ptr<PageWriter> create(std::ostream& stream) const = 0;
+    };
 
-#endif // _DIAMOND_STORAGE_ENGINE_H
+} // namespace diamond
+
+#endif // _DIAMOND_PAGE_WRITER_H

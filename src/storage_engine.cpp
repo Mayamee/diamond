@@ -22,13 +22,9 @@
 
 namespace diamond {
 
-    StorageEngine::StorageEngine(std::iostream& data_stream, const Options& options)
-        : _options(options), 
-        _manager(data_stream, options.page_manager_options) {
-        if (data_stream.rdbuf()->in_avail() == 0) {
-            _manager.write_page(Page::new_leaf_node_page(1));
-        }
-    }
+    StorageEngine::StorageEngine(PageManager& page_manager, Page::Compare compare_func)
+        : _manager(page_manager),
+        _compare_func(compare_func) {}
 
     Buffer StorageEngine::get(const Buffer& key) {
         Page::ID page_id = 1;
@@ -38,14 +34,14 @@ namespace diamond {
             Page::Type type = page->get_type();
             switch (type) {
             case Page::INTERNAL_NODE: {
-                size_t i = page->search_internal_node_entries(key, _options.compare_func);
+                size_t i = page->search_internal_node_entries(key, _compare_func);
                 const Page::InternalNodeEntry& entry = page->get_internal_node_entry(i);
                 page_id = entry.next_node_id();
                 break;
             }
             case Page::LEAF_NODE: {
                 size_t i;
-                if (!page->find_leaf_node_entry(key, _options.compare_func, i)) return Buffer();
+                if (!page->find_leaf_node_entry(key, _compare_func, i)) return Buffer();
                 const Page::LeafNodeEntry& entry = page->get_leaf_node_entry(i);
                 Page::ID data_page_id = entry.data_id();
                 size_t data_entry_index = entry.data_index();

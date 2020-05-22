@@ -27,11 +27,14 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${Boost_INCLUDE_DIRS})
 
 add_library(diamond SHARED
+    src/bg_page_writer.cpp
     src/buffer.cpp
     src/exception.cpp
     src/page.cpp
     src/page_manager.cpp
-    src/storage_engine.cpp)
+    src/page_writer.cpp
+    src/storage_engine.cpp
+    src/thread_pool.cpp)
 
 target_link_libraries(diamond
     pthread
@@ -42,7 +45,8 @@ if (DIAMOND_BUILD_TESTS)
     enable_testing()
     add_executable(diamond_tests
         test/main.cpp
-        test/page.cpp)
+        test/page.cpp
+        test/page_manager.cpp)
     target_link_libraries(diamond_tests
         diamond
         CONAN_PKG::gtest)
