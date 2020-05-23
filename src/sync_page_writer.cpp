@@ -15,23 +15,19 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include "gmock/gmock.h"
+#include "diamond/sync_page_writer.h"
 
-#include "diamond/page_writer.h"
+namespace diamond {
 
-namespace {
+    SyncPageWriter::SyncPageWriter(Storage& storage)
+        : PageWriter(storage) {}
 
-    class MockPageWriter : public diamond::PageWriter {
-    public:
-        MockPageWriter(diamond::Storage& storage)
-            : diamond::PageWriter(storage) {}
+    void SyncPageWriter::write(const std::shared_ptr<Page>& page) {
+        page->write_to_storage(_storage);
+    }
 
-        MOCK_METHOD(void, write, (const std::shared_ptr<diamond::Page>& page), (override));
-    };
+    std::shared_ptr<PageWriter> SyncPageWriterFactory::create(Storage& storage) const {
+        return std::make_shared<SyncPageWriter>(storage);
+    }
 
-    class MockPageWriterFactory : public diamond::PageWriterFactory {
-    public:
-        MOCK_METHOD(std::shared_ptr<diamond::PageWriter>, create, (diamond::Storage& storage), (const override));
-    };
-
-}
+} // namespace diamond

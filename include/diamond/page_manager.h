@@ -26,13 +26,14 @@
 #include <unordered_map>
 
 #include <boost/thread.hpp>
+#include <boost/utility.hpp>
 
 #include "diamond/page.h"
 #include "diamond/page_writer.h"
 
 namespace diamond {
 
-    class PageManager {
+    class PageManager : boost::noncopyable {
     public:
         static const uint8_t NUM_PARTITIONS = 128;
 
@@ -76,7 +77,7 @@ namespace diamond {
                 std::shared_ptr<boost::shared_mutex>& mutex);
         };
 
-        PageManager(std::iostream& stream, PageWriterFactory& page_writer_factory);
+        PageManager(Storage& storage, PageWriterFactory& page_writer_factory);
 
         ExclusiveAccessor get_exclusive_accessor(Page::ID id);
         SharedAccessor get_shared_accessor(Page::ID id);
@@ -86,10 +87,17 @@ namespace diamond {
 
         bool is_page_managed(Page::ID id);
 
+        Storage& storage();
+        const Storage& storage() const;
+
         size_t evictions() const;
 
+        size_t pages_managed() const;
+
+        void clear();
+
     private:
-        std::iostream& _stream;
+        Storage& _storage;
 
         struct Partition {
             struct PageInfo {
@@ -100,7 +108,7 @@ namespace diamond {
                 std::atomic<bool> marked;
             };
 
-            boost::shared_mutex mutex;
+            mutable boost::shared_mutex mutex;
             std::list<Page::ID> page_order;
             std::unordered_map<Page::ID, PageInfo> pages;
             std::shared_ptr<PageWriter> page_writer;

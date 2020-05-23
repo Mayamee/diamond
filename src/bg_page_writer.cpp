@@ -20,8 +20,8 @@
 
 namespace diamond {
 
-    BgPageWriter::BgPageWriter(std::ostream& stream, const Options& options)
-        : PageWriter(stream),
+    BgPageWriter::BgPageWriter(Storage& storage, const Options& options)
+        : PageWriter(storage),
         _options(options),
         _timer_running(false) {}
 
@@ -45,8 +45,8 @@ namespace diamond {
     BgPageWriterFactory::BgPageWriterFactory(const BgPageWriter::Options& options)
         : _options(options) {}
 
-    std::shared_ptr<PageWriter> BgPageWriterFactory::create(std::ostream& stream) const {
-        return std::make_shared<BgPageWriter>(stream, _options);
+    std::shared_ptr<PageWriter> BgPageWriterFactory::create(Storage& storage) const {
+        return std::make_shared<BgPageWriter>(storage, _options);
     }
 
 } // namespace diamond

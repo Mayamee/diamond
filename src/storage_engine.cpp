@@ -19,12 +19,18 @@
 
 #include "diamond/storage_engine.h"
 #include "diamond/exception.h"
+#include "diamond/storage.h"
 
 namespace diamond {
 
     StorageEngine::StorageEngine(PageManager& page_manager, Page::Compare compare_func)
         : _manager(page_manager),
-        _compare_func(compare_func) {}
+        _compare_func(compare_func) {
+        if (_manager.storage().size() == 0) {
+            std::shared_ptr<Page> root = Page::new_leaf_node_page(1);
+            _manager.write_page(root);
+        }
+    }
 
     Buffer StorageEngine::get(const Buffer& key) {
         Page::ID page_id = 1;

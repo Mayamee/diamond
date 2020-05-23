@@ -15,10 +15,9 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include <sstream>
-
 #include "gtest/gtest.h"
 
+#include "diamond/memory_storage.h"
 #include "diamond/page.h"
 
 namespace {
@@ -32,7 +31,7 @@ namespace {
             { diamond::Buffer("hello world"), 0, 0 }
         };
 
-        std::stringstream ss;
+        diamond::MemoryStorage storage;
 
         std::shared_ptr<diamond::Page> page1 =
             diamond::Page::new_data_page(1);
@@ -54,10 +53,10 @@ namespace {
         EXPECT_EQ(page1->get_size(), expected_size);
         EXPECT_EQ(page1->get_remaining_space(), diamond::Page::SIZE - expected_size);
 
-        page1->write_to_stream(ss);
+        page1->write_to_storage(storage);
 
         std::shared_ptr<diamond::Page> page2 =
-            diamond::Page::new_page_from_stream(1, ss);
+            diamond::Page::new_page_from_storage(1, storage);
 
         ASSERT_EQ(page2->get_type(), diamond::Page::DATA);
         ASSERT_EQ(page2->get_num_data_entries(), inputs.size());
@@ -81,7 +80,7 @@ namespace {
             { diamond::Buffer("key4"), 5 }
         };
 
-        std::stringstream ss;
+        diamond::MemoryStorage storage;
 
         std::shared_ptr<diamond::Page> page1 =
             diamond::Page::new_internal_node_page(1);
@@ -101,10 +100,10 @@ namespace {
         EXPECT_EQ(page1->get_size(), expected_size);
         EXPECT_EQ(page1->get_remaining_space(), diamond::Page::SIZE - expected_size);
 
-        page1->write_to_stream(ss);
+        page1->write_to_storage(storage);
 
         std::shared_ptr<diamond::Page> page2 =
-            diamond::Page::new_page_from_stream(1, ss);
+            diamond::Page::new_page_from_storage(1, storage);
 
         ASSERT_EQ(page2->get_type(), diamond::Page::INTERNAL_NODE);
         ASSERT_EQ(page2->get_num_internal_node_entries(), inputs.size());
@@ -127,7 +126,7 @@ namespace {
             { diamond::Buffer("key4"), 2, 3 }
         };
 
-        std::stringstream ss;
+        diamond::MemoryStorage storage;
 
         std::shared_ptr<diamond::Page> page1 =
             diamond::Page::new_leaf_node_page(1);
@@ -148,10 +147,10 @@ namespace {
         EXPECT_EQ(page1->get_size(), expected_size);
         EXPECT_EQ(page1->get_remaining_space(), diamond::Page::SIZE - expected_size);
 
-        page1->write_to_stream(ss);
+        page1->write_to_storage(storage);
 
         std::shared_ptr<diamond::Page> page2 =
-            diamond::Page::new_page_from_stream(1, ss);
+            diamond::Page::new_page_from_storage(1, storage);
 
         ASSERT_EQ(page2->get_type(), diamond::Page::LEAF_NODE);
         ASSERT_EQ(page2->get_num_leaf_node_entries(), inputs.size());

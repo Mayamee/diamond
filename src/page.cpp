@@ -17,11 +17,11 @@
 
 #include <algorithm>
 #include <cstring>
-#include <iostream>
 #include <utility>
 
 #include "diamond/buffer.h"
 #include "diamond/page.h"
+#include "diamond/storage.h"
 
 namespace diamond {
 
@@ -61,11 +61,13 @@ namespace diamond {
         return new_page(id, LEAF_NODE);
     }
 
-    std::shared_ptr<Page> Page::new_page_from_stream(ID id, std::istream& stream) {
+    std::shared_ptr<Page> Page::new_page_from_storage(ID id, Storage& storage) {
         if (id == 0) throw std::invalid_argument("page ids must be greater than 0");
-        stream.seekg(SIZE * (id - 1));
 
-        Buffer buffer(SIZE, stream);
+        if (storage.size() < SIZE * id) return nullptr;
+        storage.seek(SIZE * (id - 1));
+
+        Buffer buffer(SIZE, storage);
         BufferReader buffer_reader(buffer);
 
         std::shared_ptr<Page> page(new Page);
@@ -289,10 +291,10 @@ namespace diamond {
         _size += space;
     }
 
-    void Page::write_to_stream(std::ostream& stream) const {
+    void Page::write_to_storage(Storage& storage) const {
         Buffer buffer(Page::SIZE);
         write_to_buffer(buffer);
-        buffer.write_to_stream(stream);
+        buffer.write_to_storage(storage);
     }
 
     void Page::write_to_buffer(Buffer& buffer) const {

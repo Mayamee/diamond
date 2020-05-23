@@ -18,7 +18,6 @@
 #ifndef _DIAMOND_BUFFER_H
 #define _DIAMOND_BUFFER_H
 
-#include <iostream>
 #include <string>
 #include <type_traits>
 
@@ -26,13 +25,15 @@
 
 namespace diamond {
 
+    class Storage;
+
     class Buffer {
     public:
         Buffer();
         Buffer(size_t size);
         Buffer(size_t size, char* buffer);
         Buffer(const std::string& str);
-        Buffer(size_t size, std::istream& stream);
+        Buffer(size_t size, Storage& storage);
 
         Buffer(const Buffer& other);
         Buffer(Buffer&& other);
@@ -44,7 +45,7 @@ namespace diamond {
         char* buffer();
         const char* buffer() const;
 
-        void write_to_stream(std::ostream& ostream) const;
+        void write_to_storage(Storage& storage) const;
 
         char operator[](size_t i) const;
 

@@ -96,7 +96,7 @@ namespace diamond {
         static std::shared_ptr<Page> new_internal_node_page(ID id);
         static std::shared_ptr<Page> new_leaf_node_page(ID id);
 
-        static std::shared_ptr<Page> new_page_from_stream(ID id, std::istream& stream);
+        static std::shared_ptr<Page> new_page_from_storage(ID id, Storage& storage);
 
         static size_t default_compare(const Buffer& b0, const Buffer& b1);
 
@@ -125,7 +125,7 @@ namespace diamond {
         bool find_leaf_node_entry(const Buffer& key, Compare compare, size_t& res) const;
         void insert_leaf_node_entry(const Buffer& key, ID data_id, size_t data_index);
 
-        void write_to_stream(std::ostream& stream) const;
+        void write_to_storage(Storage& storage) const;
         void write_to_buffer(Buffer& buffer) const;
 
     private:

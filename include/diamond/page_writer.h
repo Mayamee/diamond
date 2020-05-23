@@ -26,17 +26,17 @@ namespace diamond {
 
     class PageWriter {
     public:
-        PageWriter(std::ostream& stream);
+        PageWriter(Storage& storage);
 
         virtual void write(const std::shared_ptr<Page>& page) = 0;
 
     protected:
-        std::ostream& _stream;
+        Storage& _storage;
     };
 
     class PageWriterFactory {
     public:
-        virtual std::shared_ptr<PageWriter> create(std::ostream& stream) const = 0;
+        virtual std::shared_ptr<PageWriter> create(Storage& storage) const = 0;
     };
 
 } // namespace diamond

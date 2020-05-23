@@ -17,21 +17,20 @@
 
 #include "gmock/gmock.h"
 
-#include "diamond/page_writer.h"
+#include "diamond/storage.h"
 
 namespace {
 
-    class MockPageWriter : public diamond::PageWriter {
+    class MockStorage : public diamond::Storage {
     public:
-        MockPageWriter(diamond::Storage& storage)
-            : diamond::PageWriter(storage) {}
+        MockStorage() = default;
 
-        MOCK_METHOD(void, write, (const std::shared_ptr<diamond::Page>& page), (override));
+        MOCK_METHOD(void, write, (const char* buffer, size_t n), (override));
+        MOCK_METHOD(void, write, (const diamond::Buffer& buffer), (override));
+        MOCK_METHOD(void, read, (char* buffer, size_t n), (override));
+        MOCK_METHOD(void, read, (diamond::Buffer& buffer, size_t n), (override));
+        MOCK_METHOD(void, seek, (size_t n), (override));
+        MOCK_METHOD(size_t, size, (), (override));
     };
 
-    class MockPageWriterFactory : public diamond::PageWriterFactory {
-    public:
-        MOCK_METHOD(std::shared_ptr<diamond::PageWriter>, create, (diamond::Storage& storage), (const override));
-    };
-
-}
+} // namespace

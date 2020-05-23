@@ -15,23 +15,36 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include "gmock/gmock.h"
+#include "diamond/memory_storage.h"
 
-#include "diamond/page_writer.h"
+namespace diamond {
 
-namespace {
+    void MemoryStorage::write(const char* buffer, size_t n) {
+        _ss.write(buffer, n);
+    }
 
-    class MockPageWriter : public diamond::PageWriter {
-    public:
-        MockPageWriter(diamond::Storage& storage)
-            : diamond::PageWriter(storage) {}
+    void MemoryStorage::write(const Buffer& buffer) {
+        write(buffer.buffer(), buffer.size());
+    }
 
-        MOCK_METHOD(void, write, (const std::shared_ptr<diamond::Page>& page), (override));
-    };
+    void MemoryStorage::read(char* buffer, size_t n) {
+        _ss.read(buffer, n);
+    }
 
-    class MockPageWriterFactory : public diamond::PageWriterFactory {
-    public:
-        MOCK_METHOD(std::shared_ptr<diamond::PageWriter>, create, (diamond::Storage& storage), (const override));
-    };
+    void MemoryStorage::read(Buffer& buffer, size_t n) {
+        read(buffer.buffer(), n);
+    }
 
-}
+    void MemoryStorage::seek(size_t n) {
+        _ss.seekg(n);
+    }
+
+    size_t MemoryStorage::size() {
+        size_t pos = _ss.tellg();
+        _ss.seekg(0, std::ios::end);
+        size_t size = _ss.tellg();
+        _ss.seekg(pos);
+        return size;
+    }
+
+} // namespace diamond

@@ -16,16 +16,15 @@
 */
 
 #include "diamond/page_manager.h"
-#include "diamond/bg_page_writer.h"
 #include "diamond/exception.h"
 
 namespace diamond {
 
-    PageManager::PageManager(std::iostream& stream, PageWriterFactory& page_writer_factory)
-        : _stream(stream),
+    PageManager::PageManager(Storage& storage, PageWriterFactory& page_writer_factory)
+        : _storage(storage),
         _evictions(0) {
         for (size_t i = 0; i < NUM_PARTITIONS; i++) {
-            _partitions[i].page_writer = page_writer_factory.create(stream);
+            _partitions[i].page_writer = page_writer_factory.create(storage);
         }
     }
 
@@ -65,8 +64,35 @@ namespace diamond {
         return partition.pages.find(id) != partition.pages.end();
     }
 
+    Storage& PageManager::storage() {
+        return _storage;
+    }
+
+    const Storage& PageManager::storage() const {
+        return _storage;
+    }
+
     size_t PageManager::evictions() const {
         return _evictions;
+    }
+
+    size_t PageManager::pages_managed() const {
+        size_t n = 0;
+        for (size_t i = 0; i < NUM_PARTITIONS; i++) {
+            const Partition& partition = _partitions[i];
+            boost::shared_lock<boost::shared_mutex> lock(partition.mutex);
+            n += partition.pages.size();
+        }
+        return n;
+    }
+
+    void PageManager::clear() {
+        for (size_t i = 0; i < NUM_PARTITIONS; i++) {
+            Partition& partition = _partitions[i];
+            boost::unique_lock<boost::shared_mutex> lock(partition.mutex);
+            partition.pages.clear();
+            partition.page_order.clear();
+        }
     }
 
     PageManager::Partition& PageManager::get_partition(Page::ID id) {
@@ -89,7 +115,7 @@ namespace diamond {
             }
         }
 
-        page = Page::new_page_from_stream(id, _stream);
+        page = Page::new_page_from_storage(id, _storage);
         if (page) {
             boost::unique_lock<boost::shared_mutex> lock(partition.mutex);
             partition.pages.emplace(page->get_id(), page);

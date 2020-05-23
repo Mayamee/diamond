@@ -15,23 +15,33 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include "gmock/gmock.h"
+#ifndef _DIAMOND_MEMORY_STORAGE_H
+#define _DIAMOND_MEMORY_STORAGE_H
 
-#include "diamond/page_writer.h"
+#include <sstream>
 
-namespace {
+#include "diamond/storage.h"
 
-    class MockPageWriter : public diamond::PageWriter {
+namespace diamond {
+
+    class MemoryStorage final : public Storage {
     public:
-        MockPageWriter(diamond::Storage& storage)
-            : diamond::PageWriter(storage) {}
+        MemoryStorage() = default;
 
-        MOCK_METHOD(void, write, (const std::shared_ptr<diamond::Page>& page), (override));
+        void write(const char* buffer, size_t n) override;
+        void write(const Buffer& buffer) override;
+
+        void read(char* buffer, size_t n) override;
+        void read(Buffer& buffer, size_t n) override;
+
+        void seek(size_t n) override;
+
+        size_t size() override;
+
+    private:
+        std::stringstream _ss;
     };
 
-    class MockPageWriterFactory : public diamond::PageWriterFactory {
-    public:
-        MOCK_METHOD(std::shared_ptr<diamond::PageWriter>, create, (diamond::Storage& storage), (const override));
-    };
+} // namespace diamond
 
-}
+#endif // _DIAMOND_MEMORY_STORAGE_H

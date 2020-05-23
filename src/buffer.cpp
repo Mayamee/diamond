@@ -18,6 +18,7 @@
 #include <cstring>
 
 #include "diamond/buffer.h"
+#include "diamond/storage.h"
 
 namespace diamond {
 
@@ -43,11 +44,11 @@ namespace diamond {
         std::strcpy(_buffer, str.c_str());
     }
 
-    Buffer::Buffer(size_t size, std::istream& stream)
+    Buffer::Buffer(size_t size, Storage& storage)
         : _size(size),
         _buffer(new char[size]),
         _owns_buffer(true) {
-        stream.read(_buffer, size);
+        storage.read(_buffer, size);
     }
 
     Buffer::Buffer(const Buffer& other)
@@ -85,8 +86,8 @@ namespace diamond {
         return _buffer;
     }
 
-    void Buffer::write_to_stream(std::ostream& ostream) const {
-        ostream.write(_buffer, _size);
+    void Buffer::write_to_storage(Storage& storage) const {
+        storage.write(_buffer, _size);
     }
 
     char Buffer::operator[](size_t i) const {

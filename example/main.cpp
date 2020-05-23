@@ -15,23 +15,21 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include "gmock/gmock.h"
+#include "diamond/bg_page_writer.h"
+#include "diamond/file_storage.h"
+#include "diamond/storage_engine.h"
 
-#include "diamond/page_writer.h"
+int main() {
 
-namespace {
+    diamond::FileStorage storage("data");
 
-    class MockPageWriter : public diamond::PageWriter {
-    public:
-        MockPageWriter(diamond::Storage& storage)
-            : diamond::PageWriter(storage) {}
+    diamond::BgPageWriter::Options options;
+    options.delay = 500;
+    diamond::BgPageWriterFactory page_writer_factory(options);
 
-        MOCK_METHOD(void, write, (const std::shared_ptr<diamond::Page>& page), (override));
-    };
+    diamond::PageManager manager(storage, page_writer_factory);
 
-    class MockPageWriterFactory : public diamond::PageWriterFactory {
-    public:
-        MOCK_METHOD(std::shared_ptr<diamond::PageWriter>, create, (diamond::Storage& storage), (const override));
-    };
+    diamond::StorageEngine engine(manager);
 
+    return 0;
 }

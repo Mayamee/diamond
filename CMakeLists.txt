@@ -10,6 +10,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 option(DIAMOND_BUILD_TESTS "enable testing" ON)
+option(DIAMOND_BUILD_EXAMPLE "enable example build" OFF)
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR
     "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
@@ -30,10 +31,13 @@ add_library(diamond SHARED
     src/bg_page_writer.cpp
     src/buffer.cpp
     src/exception.cpp
+    src/file_storage.cpp
+    src/memory_storage.cpp
     src/page.cpp
     src/page_manager.cpp
     src/page_writer.cpp
     src/storage_engine.cpp
+    src/sync_page_writer.cpp
     src/thread_pool.cpp)
 
 target_link_libraries(diamond
@@ -51,4 +55,11 @@ if (DIAMOND_BUILD_TESTS)
         diamond
         CONAN_PKG::gtest)
     gtest_discover_tests(diamond_tests)
+endif()
+
+if (DIAMOND_BUILD_EXAMPLE)
+    add_executable(diamond_example
+        example/main.cpp)
+    target_link_libraries(diamond_example
+        diamond)
 endif()

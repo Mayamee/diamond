@@ -31,7 +31,7 @@ namespace diamond {
             uint32_t max_pages = 100;
         };
 
-        BgPageWriter(std::ostream& stream, const Options& options);
+        BgPageWriter(Storage& storage, const Options& options);
 
         virtual void write(const std::shared_ptr<Page>& page) override;
 
@@ -48,7 +48,7 @@ namespace diamond {
     public:
         BgPageWriterFactory(const BgPageWriter::Options& options);
 
-        virtual std::shared_ptr<PageWriter> create(std::ostream& stream) const override;
+        virtual std::shared_ptr<PageWriter> create(Storage& storage) const override;
 
     private:
         BgPageWriter::Options _options;
