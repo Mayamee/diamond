@@ -107,6 +107,7 @@ namespace diamond {
         uint16_t get_size() const;
         uint16_t get_remaining_space() const;
         size_t header_size() const;
+        uint64_t file_pos() const;
 
         size_t get_num_data_entries() const;
         const std::vector<DataEntry>* get_data_entries() const;

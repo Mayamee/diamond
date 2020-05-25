@@ -15,39 +15,35 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _DIAMOND_THREAD_POOL_H
-#define _DIAMOND_THREAD_POOL_H
+#ifndef _DIAMOND_TIMER_H
+#define _DIAMOND_TIMER_H
 
-#include <functional>
+#include <atomic>
 
-#include <boost/asio.hpp>
-#include <boost/thread.hpp>
+#include <boost/utility.hpp>
+
+#include "diamond/thread_pool.h"
 
 namespace diamond {
 
-    class ThreadPool {
+    class Timer : boost::noncopyable {
     public:
-        using Task = std::function<void()>;
+        Timer(
+            ThreadPool::Task task,
+            const boost::posix_time::time_duration& delay);
 
-        static ThreadPool& instance() {
-            static ThreadPool pool;
-            return pool;
-        }
-
-        ~ThreadPool();
-
-        void queue(Task task);
-
-        boost::asio::io_service& service();
+        void start();
+        void stop();
 
     private:
-        boost::thread_group _thread_group;
-        boost::asio::io_service _service;
-        boost::asio::io_service::work _work;
+        ThreadPool::Task _task;
+        boost::posix_time::time_duration _delay;
+        std::atomic_bool _enabled;
+        boost::asio::deadline_timer _timer;
 
-        ThreadPool();
+        void tick();
     };
 
 } // namespace diamond
 
-#endif // _DIAMOND_THREAD_POOL_H
+#endif // _DIAMOND_TIMER_H

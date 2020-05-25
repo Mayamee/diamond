@@ -195,6 +195,10 @@ namespace diamond {
         }
     }
 
+    uint64_t Page::file_pos() const {
+        return (_id - 1) * SIZE;
+    }
+
     size_t Page::get_num_data_entries() const {
         ensure_type_is(DATA);
         return _data_entries->size();

@@ -38,7 +38,8 @@ add_library(diamond SHARED
     src/page_writer.cpp
     src/storage_engine.cpp
     src/sync_page_writer.cpp
-    src/thread_pool.cpp)
+    src/thread_pool.cpp
+    src/timer.cpp)
 
 target_link_libraries(diamond
     pthread

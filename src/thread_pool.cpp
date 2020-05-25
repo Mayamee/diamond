@@ -19,7 +19,25 @@
 
 namespace diamond {
 
-    boost::asio::thread_pool ThreadPool::_pool;
-    boost::asio::io_service ThreadPool::_service;
+    ThreadPool::~ThreadPool() {
+        _service.stop();
+        _thread_group.join_all();
+    }
+
+    ThreadPool::ThreadPool()
+        : _work(_service) {
+        size_t threads = boost::thread::hardware_concurrency();
+        for (size_t i = 0; i < threads; i++) {
+            _thread_group.create_thread([&]() { _service.run(); });
+        }
+    }
+
+    void ThreadPool::queue(Task task) {
+        _service.post(task);
+    }
+
+    boost::asio::io_service& ThreadPool::service() {
+        return _service;
+    }
 
 } // namespace diamond

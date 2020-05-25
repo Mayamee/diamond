@@ -128,46 +128,6 @@ namespace diamond {
         throw Exception(Exception::Reason::NO_SUCH_PAGE);
     }
 
-    // void PageManager::background_writer_task() {
-    //     bool advance = false;
-    //     size_t partition_index = 0;
-    //     std::list<Page::ID>::reverse_iterator iter =
-    //         _partitions[partition_index].page_order.rbegin();
-    //     while (true) {
-    //         std::this_thread::sleep_for(
-    //             std::chrono::milliseconds(_options.background_writer_delay));
-
-    //         size_t pages_written = 0;
-    //         for (size_t i = 0; i < NUM_PARTITIONS; i++) {
-    //             Partition& partition = _partitions[partition_index];
-    //             boost::shared_lock<boost::shared_mutex> lock(partition.mutex);
-    //             if (advance) {
-    //                 iter = partition.page_order.rbegin();
-    //                 advance = false;
-    //             }
-    //             while (iter != partition.page_order.rend() &&
-    //                     pages_written < _options.background_writer_max_pages) {
-    //                 Page::ID id = *iter;
-    //                 Partition::PageInfo& info = partition.pages.at(id);
-    //                 if (info.is_dirty.load(std::memory_order::memory_order_acquire)) {
-    //                     {
-    //                         boost::unique_lock<boost::shared_mutex> lock(*info.mutex);
-    //                         info.page->write_to_stream(_stream);
-    //                     }
-    //                     info.is_dirty.store(false, std::memory_order::memory_order_release);
-    //                     pages_written++;
-    //                 }
-    //                 iter++;
-    //             }
-    //             if (iter == partition.page_order.rend()) {
-    //                 partition_index++;
-    //                 advance = true;
-    //             }
-    //             if (pages_written == _options.background_writer_max_pages) break;
-    //         }
-    //     }
-    // }
-
     PageManager::ExclusiveAccessor::~ExclusiveAccessor() {
         if (_locked) _mutex->unlock();
     }
