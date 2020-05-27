@@ -21,34 +21,37 @@
 #include "diamond/memory_storage.h"
 #include "diamond/page_manager.h"
 
+#include "mocks/eviction_strategy.h"
 #include "mocks/page_writer.h"
 #include "mocks/storage.h"
 
 namespace {
 
-    TEST(page_manager_tests, write_page_ensure_writer_is_called) {
-        MockStorage storage;
+    TEST(page_manager_tests, ensure_unmanaged_page_is_managed_after_write) {
+        MockStorage mock_storage;
         MockPageWriterFactory mock_page_writer_factory;
         std::shared_ptr<MockPageWriter> mock_page_writer =
-            std::make_shared<MockPageWriter>(storage);
+            std::make_shared<MockPageWriter>(mock_storage);
         EXPECT_CALL(mock_page_writer_factory, create)
             .WillRepeatedly(::testing::Return(mock_page_writer));
-        EXPECT_CALL(*mock_page_writer, write)
-            .Times(2);
 
-        diamond::PageManager manager(storage, mock_page_writer_factory);
+        MockEvictionStrategyFactory mock_eviction_strategy_factory;
+        std::shared_ptr<MockEvictionStrategy> mock_eviction_strategy =
+            std::make_shared<MockEvictionStrategy>();
+        EXPECT_CALL(mock_eviction_strategy_factory, create)
+            .WillRepeatedly(::testing::Return(mock_eviction_strategy));
+
+        diamond::PageManager manager(
+            mock_storage,
+            mock_page_writer_factory,
+            mock_eviction_strategy_factory);
         diamond::Page::ID id = 1;
         std::shared_ptr<diamond::Page> page =
             diamond::Page::new_leaf_node_page(id);
 
         EXPECT_FALSE(manager.is_page_managed(id));
-        EXPECT_EQ(manager.pages_managed(), 0);
         manager.write_page(page);
         EXPECT_TRUE(manager.is_page_managed(id));
-        EXPECT_EQ(manager.pages_managed(), 1);
-
-        page->insert_leaf_node_entry(diamond::Buffer("key1"), 2, 0);
-        manager.write_page(page);
     }
 
     TEST(page_manager_tests, ensure_unmanaged_page_is_read_from_storage) {
@@ -65,25 +68,41 @@ namespace {
         EXPECT_CALL(mock_page_writer_factory, create)
             .WillRepeatedly(::testing::Return(mock_page_writer));
 
-        diamond::PageManager manager(storage, mock_page_writer_factory);
+        MockEvictionStrategyFactory mock_eviction_strategy_factory;
+        std::shared_ptr<MockEvictionStrategy> mock_eviction_strategy =
+            std::make_shared<MockEvictionStrategy>();
+        EXPECT_CALL(mock_eviction_strategy_factory, create)
+            .WillRepeatedly(::testing::Return(mock_eviction_strategy));
+
+        diamond::PageManager manager(
+            storage,
+            mock_page_writer_factory,
+            mock_eviction_strategy_factory);
 
         EXPECT_FALSE(manager.is_page_managed(id));
-        EXPECT_EQ(manager.pages_managed(), 0);
-        diamond::PageManager::SharedAccessor accessor =
+        diamond::SharedPageAccessor accessor =
             manager.get_shared_accessor(id);
         EXPECT_TRUE(manager.is_page_managed(id));
-        EXPECT_EQ(manager.pages_managed(), 1);
     }
 
     TEST(page_manager_tests, throws_when_page_does_not_exist) {
-        MockStorage storage;
+        MockStorage mock_storage;
         MockPageWriterFactory mock_page_writer_factory;
         std::shared_ptr<MockPageWriter> mock_page_writer =
-            std::make_shared<MockPageWriter>(storage);
+            std::make_shared<MockPageWriter>(mock_storage);
         EXPECT_CALL(mock_page_writer_factory, create)
             .WillRepeatedly(::testing::Return(mock_page_writer));
 
-        diamond::PageManager manager(storage, mock_page_writer_factory);
+        MockEvictionStrategyFactory mock_eviction_strategy_factory;
+        std::shared_ptr<MockEvictionStrategy> mock_eviction_strategy =
+            std::make_shared<MockEvictionStrategy>();
+        EXPECT_CALL(mock_eviction_strategy_factory, create)
+            .WillRepeatedly(::testing::Return(mock_eviction_strategy));
+
+        diamond::PageManager manager(
+            mock_storage,
+            mock_page_writer_factory,
+            mock_eviction_strategy_factory);
         EXPECT_THROW(manager.get_shared_accessor(1), diamond::Exception);
     }
 

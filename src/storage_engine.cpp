@@ -19,13 +19,12 @@
 
 #include "diamond/storage_engine.h"
 #include "diamond/exception.h"
-#include "diamond/storage.h"
 
 namespace diamond {
 
     StorageEngine::StorageEngine(PageManager& page_manager, Page::Compare compare_func)
-        : _manager(page_manager),
-        _compare_func(compare_func) {
+            : _manager(page_manager),
+            _compare_func(compare_func) {
         if (_manager.storage().size() == 0) {
             std::shared_ptr<Page> root = Page::new_leaf_node_page(1);
             _manager.write_page(root);
@@ -35,7 +34,7 @@ namespace diamond {
     Buffer StorageEngine::get(const Buffer& key) {
         Page::ID page_id = 1;
         while (true) {
-            PageManager::SharedAccessor accessor = _manager.get_shared_accessor(page_id);
+            SharedPageAccessor accessor = _manager.get_shared_accessor(page_id);
             const std::shared_ptr<const Page>& page = accessor.page();
             Page::Type type = page->get_type();
             switch (type) {
@@ -52,7 +51,7 @@ namespace diamond {
                 Page::ID data_page_id = entry.data_id();
                 size_t data_entry_index = entry.data_index();
                 accessor.unlock();
-                PageManager::SharedAccessor data_accessor = _manager.get_shared_accessor(data_page_id);
+                SharedPageAccessor data_accessor = _manager.get_shared_accessor(data_page_id);
                 return Buffer(accessor.page()->get_data_entry(data_entry_index).data());
             }
             default:

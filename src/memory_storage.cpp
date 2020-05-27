@@ -19,27 +19,19 @@
 
 namespace diamond {
 
-    void MemoryStorage::write(const char* buffer, size_t n) {
+    void MemoryStorage::write_impl(const char* buffer, size_t n) {
         _ss.write(buffer, n);
     }
 
-    void MemoryStorage::write(const Buffer& buffer) {
-        write(buffer.buffer(), buffer.size());
-    }
-
-    void MemoryStorage::read(char* buffer, size_t n) {
+    void MemoryStorage::read_impl(char* buffer, size_t n) {
         _ss.read(buffer, n);
     }
 
-    void MemoryStorage::read(Buffer& buffer, size_t n) {
-        read(buffer.buffer(), n);
-    }
-
-    void MemoryStorage::seek(size_t n) {
+    void MemoryStorage::seek_impl(size_t n) {
         _ss.seekg(n);
     }
 
-    size_t MemoryStorage::size() {
+    size_t MemoryStorage::size_impl() {
         size_t pos = _ss.tellg();
         _ss.seekg(0, std::ios::end);
         size_t size = _ss.tellg();

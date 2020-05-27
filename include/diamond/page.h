@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "diamond/buffer.h"
+#include "diamond/storage.h"
 
 namespace diamond {
 
@@ -97,6 +98,8 @@ namespace diamond {
         static std::shared_ptr<Page> new_leaf_node_page(ID id);
 
         static std::shared_ptr<Page> new_page_from_storage(ID id, Storage& storage);
+
+        static uint64_t file_pos_for_id(Page::ID id);
 
         static size_t default_compare(const Buffer& b0, const Buffer& b1);
 

@@ -15,27 +15,22 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include "diamond/bg_page_writer.h"
-#include "diamond/lru_eviction_strategy.h"
-#include "diamond/file_storage.h"
-#include "diamond/storage_engine.h"
+#include "gmock/gmock.h"
 
-int main() {
+#include "diamond/eviction_strategy.h"
 
-    diamond::FileStorage storage("data");
+namespace {
 
-    diamond::BgPageWriter::Options options;
-    options.delay = 500;
-    diamond::BgPageWriterFactory page_writer_factory(options);
+    class MockEvictionStrategy : public diamond::EvictionStrategy {
+    public:
+        MOCK_METHOD(diamond::Page::ID, evict, (), (override));
+        MOCK_METHOD(void, use, (diamond::Page::ID id), (override));
+        MOCK_METHOD(void, track, (diamond::Page::ID id), (override));
+    };
 
-    diamond::LRUEvictionStrategyFactory eviction_strategy_factory;
+    class MockEvictionStrategyFactory : public diamond::EvictionStrategyFactory {
+    public:
+        MOCK_METHOD(std::shared_ptr<diamond::EvictionStrategy>, create, (), (const override));
+    };
 
-    diamond::PageManager manager(
-        storage,
-        page_writer_factory,
-        eviction_strategy_factory);
-
-    diamond::StorageEngine engine(manager);
-
-    return 0;
-}
+} // namespace 

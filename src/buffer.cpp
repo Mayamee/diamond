@@ -38,30 +38,30 @@ namespace diamond {
         _owns_buffer(false) {}
 
     Buffer::Buffer(const std::string& str)
-        : _size(str.size()),
-        _buffer(new char[str.size()]),
-        _owns_buffer(true) {
+            : _size(str.size()),
+            _buffer(new char[str.size()]),
+            _owns_buffer(true) {
         std::strcpy(_buffer, str.c_str());
     }
 
     Buffer::Buffer(size_t size, Storage& storage)
-        : _size(size),
-        _buffer(new char[size]),
-        _owns_buffer(true) {
+            : _size(size),
+            _buffer(new char[size]),
+            _owns_buffer(true) {
         storage.read(_buffer, size);
     }
 
     Buffer::Buffer(const Buffer& other)
-        : _size(other._size),
-        _buffer(new char[other._size]),
-        _owns_buffer(true) {
+            : _size(other._size),
+            _buffer(new char[other._size]),
+            _owns_buffer(true) {
         std::memcpy(_buffer, other._buffer, _size);
     }
 
     Buffer::Buffer(Buffer&& other)
-        : _size(other._size),
-        _buffer(other._buffer),
-        _owns_buffer(other._owns_buffer)  {
+            : _size(other._size),
+            _buffer(other._buffer),
+            _owns_buffer(other._owns_buffer)  {
         if (_owns_buffer) {
             other._size = 0;
             other._buffer = nullptr;

@@ -37,26 +37,20 @@ namespace diamond {
 
         BgPageWriter(Storage& storage, const Options& options);
 
-        virtual void write(const std::shared_ptr<Page>& page) override;
+        virtual void write(const std::shared_ptr<const Page>& page) override;
 
     private:
         bool _timer_running;
         Timer _timer;
         boost::mutex _mutex;
         uint32_t _max_pages;
-        struct PendingWrite {
-            PendingWrite(Buffer _data, uint64_t _pos);
-
-            Buffer data;
-            uint64_t pos;
-        };
         std::unordered_map<
             Page::ID,
-            PendingWrite
+            Buffer
         > _pending_writes;
         std::unordered_map<
             Page::ID,
-            PendingWrite
+            Buffer
         >::iterator _pending_writes_iter;
 
         void bg_task();

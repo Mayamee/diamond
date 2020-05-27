@@ -15,40 +15,37 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _DIAMOND_STORAGE_H
-#define _DIAMOND_STORAGE_H
-
-#include <boost/thread.hpp>
-#include <boost/utility.hpp>
-
-#include "diamond/buffer.h"
+#include "diamond/storage.h"
 
 namespace diamond {
 
-    class Storage : boost::noncopyable {
-    public:
-        Storage() = default;
+    void Storage::write(const char* buffer, size_t n) {
+        boost::lock_guard<boost::mutex> lock(_mutex);
+        write_impl(buffer, n);
+    }
 
-        void write(const char* buffer, size_t n);
-        void write(const Buffer& buffer);
+    void Storage::write(const Buffer& buffer) {
+        write(buffer.buffer(), buffer.size());
+    }
 
-        void read(char* buffer, size_t n);
-        void read(Buffer& buffer, size_t n);
+    void Storage::read(char* buffer, size_t n) {
+        boost::lock_guard<boost::mutex> lock(_mutex);
+        read_impl(buffer, n);
+    }
 
-        void seek(size_t n);
+    void Storage::read(Buffer& buffer, size_t n) {
+        read(buffer.buffer(), n);
+    }
 
-        size_t size();
+    void Storage::seek(size_t n) {
+        boost::lock_guard<boost::mutex> lock(_mutex);
+        seek_impl(n);
+    }
 
-    protected:
-        virtual void write_impl(const char* buffer, size_t n) = 0;
-        virtual void read_impl(char* buffer, size_t n) = 0;
-        virtual void seek_impl(size_t n) = 0;
-        virtual size_t size_impl() = 0;
+    size_t Storage::size() {
+        boost::lock_guard<boost::mutex> lock(_mutex);
+        return size_impl();
+    }
 
-    private:
-        boost::mutex _mutex;
-    };
 
 } // namespace diamond
-
-#endif // _DIAMOND_STORAGE_H

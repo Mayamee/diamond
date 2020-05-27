@@ -25,12 +25,10 @@ namespace {
     public:
         MockStorage() = default;
 
-        MOCK_METHOD(void, write, (const char* buffer, size_t n), (override));
-        MOCK_METHOD(void, write, (const diamond::Buffer& buffer), (override));
-        MOCK_METHOD(void, read, (char* buffer, size_t n), (override));
-        MOCK_METHOD(void, read, (diamond::Buffer& buffer, size_t n), (override));
-        MOCK_METHOD(void, seek, (size_t n), (override));
-        MOCK_METHOD(size_t, size, (), (override));
+        MOCK_METHOD(void, write_impl, (const char* buffer, size_t n), (override));
+        MOCK_METHOD(void, read_impl, (char* buffer, size_t n), (override));
+        MOCK_METHOD(void, seek_impl, (size_t n), (override));
+        MOCK_METHOD(size_t, size_impl, (), (override));
     };
 
 } // namespace

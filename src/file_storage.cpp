@@ -22,27 +22,19 @@ namespace diamond {
     FileStorage::FileStorage(const std::string& file_name)
         : _fs(file_name) {}
 
-    void FileStorage::write(const char* buffer, size_t n) {
+    void FileStorage::write_impl(const char* buffer, size_t n) {
         _fs.write(buffer, n);
     }
 
-    void FileStorage::write(const Buffer& buffer) {
-        write(buffer.buffer(), buffer.size());
-    }
-
-    void FileStorage::read(char* buffer, size_t n) {
+    void FileStorage::read_impl(char* buffer, size_t n) {
         _fs.read(buffer, n);
     }
 
-    void FileStorage::read(Buffer& buffer, size_t n) {
-        read(buffer.buffer(), n);
-    }
-
-    void FileStorage::seek(size_t n) {
+    void FileStorage::seek_impl(size_t n) {
         _fs.seekg(n);
     }
 
-    size_t FileStorage::size() {
+    size_t FileStorage::size_impl() {
         size_t pos = _fs.tellg();
         _fs.seekg(0, std::ios::end);
         size_t size = _fs.tellg();

@@ -15,54 +15,60 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _DIAMOND_STORAGE_PAGE_MANAGER_H
-#define _DIAMOND_STORAGE_PAGE_MANAGER_H
+#ifndef _DIAMOND_PAGE_MANAGER_PARTITION_H
+#define _DIAMOND_PAGE_MANAGER_PARTITION_H
 
-#include <tuple>
 #include <unordered_map>
-#include <vector>
 
 #include <boost/thread.hpp>
 #include <boost/utility.hpp>
 
-#include "diamond/page_manager_partition.h"
+#include "diamond/eviction_strategy.h"
+#include "diamond/page_accessors.h"
+#include "diamond/page_writer.h"
 
 namespace diamond {
 
-    class PageManager : boost::noncopyable {
+    class PageManagerPartition : boost::noncopyable {
     public:
-        static const size_t DEFAULT_NUM_PARTITIONS = 128;
-
-        PageManager(
+        PageManagerPartition(
             Storage& storage,
-            PageWriterFactory& page_writer_factory,
-            EvictionStrategyFactory& eviction_strategy_factory,
-            size_t num_partitions = DEFAULT_NUM_PARTITIONS);
-
-        ExclusivePageAccessor create_page(Page::Type type);
+            std::shared_ptr<PageWriter> page_writer,
+            std::shared_ptr<EvictionStrategy> eviction_strategy);
 
         ExclusivePageAccessor get_exclusive_accessor(Page::ID id);
         SharedPageAccessor get_shared_accessor(Page::ID id);
 
         void write_page(const std::shared_ptr<Page>& page);
-        void write_pages(const std::vector<std::shared_ptr<Page>>& pages);
 
         bool is_page_managed(Page::ID id);
 
-        Storage& storage();
-        const Storage& storage() const;
-
     private:
         Storage& _storage;
-        size_t _num_partitions;
+        std::shared_ptr<PageWriter> _page_writer;
+        std::shared_ptr<EvictionStrategy> _eviction_strategy;
 
-        std::vector<std::unique_ptr<PageManagerPartition>> _partitions;
+        struct ManagedPage {
+            ManagedPage(std::shared_ptr<Page> _page);
 
-        std::unique_ptr<PageManagerPartition>& get_partition(Page::ID id) {
-            return _partitions.at(id % _num_partitions);
-        }
+            std::shared_ptr<Page> page;
+            std::shared_ptr<boost::shared_mutex> mutex;
+        };
+
+        std::unordered_map<
+            Page::ID,
+            ManagedPage
+        > _pages;
+
+        boost::shared_mutex _mutex;
+
+        std::tuple<
+            std::shared_ptr<Page>,
+            std::shared_ptr<boost::shared_mutex>
+        >
+        get_page(Page::ID id);
     };
 
 } // namespace diamond
 
-#endif // _DIAMOND_STORAGE_PAGE_MANAGER_H
+#endif // _DIAMOND_PAGE_MANAGER_PARTITION_H

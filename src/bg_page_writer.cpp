@@ -15,8 +15,9 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+#include <algorithm>
+
 #include "diamond/bg_page_writer.h"
-#include "diamond/storage.h"
 #include "diamond/thread_pool.h"
 
 namespace diamond {
@@ -29,13 +30,12 @@ namespace diamond {
             boost::posix_time::milliseconds(options.delay)),
         _max_pages(options.max_pages) {}
 
-    void BgPageWriter::write(const std::shared_ptr<Page>& page) {
+    void BgPageWriter::write(const std::shared_ptr<const Page>& page) {
         Buffer buffer(Page::SIZE);
         page->write_to_buffer(buffer);
         {
             boost::lock_guard<boost::mutex> lock(_mutex);
-            PendingWrite pending_write = PendingWrite(std::move(buffer), page->file_pos());
-            _pending_writes.insert_or_assign(page->get_id(), std::move(pending_write));
+            _pending_writes.insert_or_assign(page->get_id(), std::move(buffer));
             if (!_timer_running) {
                 _timer.start();
                 _timer_running = true;
@@ -44,26 +44,36 @@ namespace diamond {
     }
 
     void BgPageWriter::bg_task() {
-        boost::lock_guard<boost::mutex> lock(_mutex);
-        // TODO(zvp): group pending writes for vectored io
-        size_t pages_written = 0;
-        if (_pending_writes_iter == _pending_writes.end()) {
-            _pending_writes_iter = _pending_writes.begin();
+        using Write = std::tuple<Page::ID, Buffer>;
+        std::vector<Write> writes_in_current_cycle;
+        {
+            boost::lock_guard<boost::mutex> lock(_mutex);
+            size_t pages_written = 0;
+            if (_pending_writes_iter == _pending_writes.end()) {
+                _pending_writes_iter = _pending_writes.begin();
+            }
+            while (_pending_writes_iter != _pending_writes.end() &&
+                    pages_written < _max_pages) {
+                writes_in_current_cycle.emplace_back(
+                    (*_pending_writes_iter).first,
+                    std::move((*_pending_writes_iter).second));
+                _pending_writes_iter = _pending_writes.erase(_pending_writes_iter);
+                pages_written++;
+            }
+            if (_pending_writes.size() == 0) {
+                _timer.stop();
+                _timer_running = false;
+            }
         }
-        while (_pending_writes_iter != _pending_writes.end() &&
-                pages_written < _max_pages) {
-            PendingWrite& pending_write = (*_pending_writes_iter).second;
-            _storage.seek(pending_write.pos);
-            _storage.write(pending_write.data);
-            _pending_writes_iter = _pending_writes.erase(_pending_writes_iter);
-            pages_written++;
-        }
-        if (_pending_writes.size() == 0) _timer.stop();
-    }
 
-    BgPageWriter::PendingWrite::PendingWrite(Buffer _data, uint64_t _pos)
-        : data(std::move(_data)),
-        pos(_pos) {}
+        // TODO(zvp): group pending writes for vectored io
+        size_t n = writes_in_current_cycle.size();
+        for (size_t i = 0; i < n; i++) {
+            const Write& write = writes_in_current_cycle.at(i);
+            _storage.seek(Page::file_pos_for_id(std::get<0>(write)));
+            _storage.write(std::get<1>(write));
+        }
+    }
 
     BgPageWriterFactory::BgPageWriterFactory(const BgPageWriter::Options& options)
         : _options(options) {}

@@ -32,10 +32,14 @@ add_library(diamond SHARED
     src/buffer.cpp
     src/exception.cpp
     src/file_storage.cpp
+    src/lru_eviction_strategy.cpp
     src/memory_storage.cpp
     src/page.cpp
+    src/page_accessors.cpp
     src/page_manager.cpp
+    src/page_manager_partition.cpp
     src/page_writer.cpp
+    src/storage.cpp
     src/storage_engine.cpp
     src/sync_page_writer.cpp
     src/thread_pool.cpp

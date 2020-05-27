@@ -15,40 +15,35 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _DIAMOND_STORAGE_H
-#define _DIAMOND_STORAGE_H
+#ifndef _DIAMOND_LRU_EVICTION_STRATEGY_H
+#define _DIAMOND_LRU_EVICTION_STRATEGY_H
 
-#include <boost/thread.hpp>
-#include <boost/utility.hpp>
+#include <list>
+#include <unordered_map>
 
-#include "diamond/buffer.h"
+#include "diamond/eviction_strategy.h"
 
 namespace diamond {
 
-    class Storage : boost::noncopyable {
+    class LRUEvictionStrategy final : public EvictionStrategy {
     public:
-        Storage() = default;
-
-        void write(const char* buffer, size_t n);
-        void write(const Buffer& buffer);
-
-        void read(char* buffer, size_t n);
-        void read(Buffer& buffer, size_t n);
-
-        void seek(size_t n);
-
-        size_t size();
-
-    protected:
-        virtual void write_impl(const char* buffer, size_t n) = 0;
-        virtual void read_impl(char* buffer, size_t n) = 0;
-        virtual void seek_impl(size_t n) = 0;
-        virtual size_t size_impl() = 0;
+        Page::ID evict() override;
+        void use(Page::ID id) override;
+        void track(Page::ID id) override;
 
     private:
-        boost::mutex _mutex;
+        std::list<Page::ID> _list;
+        std::unordered_map<
+            Page::ID,
+            std::list<Page::ID>::iterator
+        > _iters;
+    };
+
+    class LRUEvictionStrategyFactory final : public EvictionStrategyFactory {
+    public:
+        std::shared_ptr<EvictionStrategy> create() const override;
     };
 
 } // namespace diamond
 
-#endif // _DIAMOND_STORAGE_H
+#endif // _DIAMOND_LRU_EVICTION_STRATEGY_H

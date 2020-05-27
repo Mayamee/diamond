@@ -20,6 +20,8 @@
 
 #include <fstream>
 
+#include <boost/thread.hpp>
+
 #include "diamond/storage.h"
 
 namespace diamond {
@@ -28,18 +30,13 @@ namespace diamond {
     public:
         FileStorage(const std::string& file_name);
 
-        void write(const char* buffer, size_t n) override;
-        void write(const Buffer& buffer) override;
-
-        void read(char* buffer, size_t n) override;
-        void read(Buffer& buffer, size_t n) override;
-
-        void seek(size_t n) override;
-
-        size_t size() override;
-
     private:
         std::fstream _fs;
+
+        void write_impl(const char* buffer, size_t n) override;
+        void read_impl(char* buffer, size_t n) override;
+        void seek_impl(size_t n) override;
+        size_t size_impl() override;
     };
 
 } // namespace diamond

@@ -15,27 +15,31 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include "diamond/bg_page_writer.h"
 #include "diamond/lru_eviction_strategy.h"
-#include "diamond/file_storage.h"
-#include "diamond/storage_engine.h"
 
-int main() {
+namespace diamond {
 
-    diamond::FileStorage storage("data");
+    Page::ID LRUEvictionStrategy::evict() {
+        Page::ID id = _list.back();
+        _iters.erase(id);
+        _list.pop_back();
+        return id;
+    }
 
-    diamond::BgPageWriter::Options options;
-    options.delay = 500;
-    diamond::BgPageWriterFactory page_writer_factory(options);
+    void LRUEvictionStrategy::use(Page::ID id) {
+        _list.splice(
+            _list.begin(),
+            _list,
+            _iters.at(id));
+    }
 
-    diamond::LRUEvictionStrategyFactory eviction_strategy_factory;
+    void LRUEvictionStrategy::track(Page::ID id) {
+        _list.push_front(id);
+        _iters[id] = _list.begin();
+    }
 
-    diamond::PageManager manager(
-        storage,
-        page_writer_factory,
-        eviction_strategy_factory);
+    std::shared_ptr<EvictionStrategy> LRUEvictionStrategyFactory::create() const {
+        return std::make_shared<LRUEvictionStrategy>();
+    }
 
-    diamond::StorageEngine engine(manager);
-
-    return 0;
-}
+} // namespace diamond

@@ -21,7 +21,6 @@
 
 #include "diamond/buffer.h"
 #include "diamond/page.h"
-#include "diamond/storage.h"
 
 namespace diamond {
 
@@ -65,7 +64,7 @@ namespace diamond {
         if (id == 0) throw std::invalid_argument("page ids must be greater than 0");
 
         if (storage.size() < SIZE * id) return nullptr;
-        storage.seek(SIZE * (id - 1));
+        storage.seek(file_pos_for_id(id));
 
         Buffer buffer(SIZE, storage);
         BufferReader buffer_reader(buffer);
@@ -142,6 +141,10 @@ namespace diamond {
         return page;
     }
 
+    uint64_t Page::file_pos_for_id(Page::ID id) {
+        return SIZE * (id - 1);
+    }
+
     size_t Page::default_compare(const Buffer& b0, const Buffer& b1) {
         size_t b0_n = b0.size();
         size_t b1_n = b1.size();
@@ -196,7 +199,7 @@ namespace diamond {
     }
 
     uint64_t Page::file_pos() const {
-        return (_id - 1) * SIZE;
+        return file_pos_for_id(_id);
     }
 
     size_t Page::get_num_data_entries() const {

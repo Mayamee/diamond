@@ -28,7 +28,7 @@ namespace diamond {
     public:
         PageWriter(Storage& storage);
 
-        virtual void write(const std::shared_ptr<Page>& page) = 0;
+        virtual void write(const std::shared_ptr<const Page>& page) = 0;
 
     protected:
         Storage& _storage;
