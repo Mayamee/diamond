@@ -19,27 +19,16 @@
 
 namespace diamond {
 
-    void Storage::write(const char* buffer, size_t n) {
+    void Storage::write(const char* buffer, size_t n, uint64_t offset) {
         boost::lock_guard<boost::mutex> lock(_mutex);
+        seek_impl(offset);
         write_impl(buffer, n);
     }
 
-    void Storage::write(const Buffer& buffer) {
-        write(buffer.buffer(), buffer.size());
-    }
-
-    void Storage::read(char* buffer, size_t n) {
+    void Storage::read(char* buffer, size_t n, uint64_t offset) {
         boost::lock_guard<boost::mutex> lock(_mutex);
+        seek_impl(offset);
         read_impl(buffer, n);
-    }
-
-    void Storage::read(Buffer& buffer, size_t n) {
-        read(buffer.buffer(), n);
-    }
-
-    void Storage::seek(size_t n) {
-        boost::lock_guard<boost::mutex> lock(_mutex);
-        seek_impl(n);
     }
 
     size_t Storage::size() {

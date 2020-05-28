@@ -18,7 +18,7 @@
 #ifndef _DIAMOND_BG_PAGE_WRITER_H
 #define _DIAMOND_BG_PAGE_WRITER_H
 
-#include <unordered_map>
+#include <queue>
 
 #include <boost/thread.hpp>
 #include <boost/utility.hpp>
@@ -36,6 +36,7 @@ namespace diamond {
         };
 
         BgPageWriter(Storage& storage, const Options& options);
+        virtual ~BgPageWriter();
 
         virtual void write(const std::shared_ptr<const Page>& page) override;
 
@@ -44,14 +45,14 @@ namespace diamond {
         Timer _timer;
         boost::mutex _mutex;
         uint32_t _max_pages;
-        std::unordered_map<
-            Page::ID,
-            Buffer
-        > _pending_writes;
-        std::unordered_map<
-            Page::ID,
-            Buffer
-        >::iterator _pending_writes_iter;
+
+        struct PendingWrite {
+            PendingWrite(Buffer _buffer, uint64_t _pos);
+
+            Buffer buffer;
+            uint64_t pos;
+        };
+        std::queue<PendingWrite> _queue;
 
         void bg_task();
     };

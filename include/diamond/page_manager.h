@@ -18,6 +18,7 @@
 #ifndef _DIAMOND_STORAGE_PAGE_MANAGER_H
 #define _DIAMOND_STORAGE_PAGE_MANAGER_H
 
+#include <atomic>
 #include <tuple>
 #include <unordered_map>
 #include <vector>
@@ -39,10 +40,9 @@ namespace diamond {
             EvictionStrategyFactory& eviction_strategy_factory,
             size_t num_partitions = DEFAULT_NUM_PARTITIONS);
 
-        ExclusivePageAccessor create_page(Page::Type type);
+        PageAccessor create_page(Page::Type type);
 
-        ExclusivePageAccessor get_exclusive_accessor(Page::ID id);
-        SharedPageAccessor get_shared_accessor(Page::ID id);
+        PageAccessor get_page_accessor(Page::ID id, PageAccessor::Mode access_mode);
 
         void write_page(const std::shared_ptr<Page>& page);
         void write_pages(const std::vector<std::shared_ptr<Page>>& pages);
@@ -55,11 +55,16 @@ namespace diamond {
     private:
         Storage& _storage;
         size_t _num_partitions;
+        std::atomic<Page::ID> _next_page_id;
 
         std::vector<std::unique_ptr<PageManagerPartition>> _partitions;
 
         std::unique_ptr<PageManagerPartition>& get_partition(Page::ID id) {
             return _partitions.at(id % _num_partitions);
+        }
+
+        Page::ID next_page_id() {
+            return _next_page_id++;
         }
     };
 

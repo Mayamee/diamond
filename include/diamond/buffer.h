@@ -31,9 +31,9 @@ namespace diamond {
     public:
         Buffer();
         Buffer(size_t size);
-        Buffer(size_t size, char* buffer);
+        Buffer(char* buffer, size_t size);
         Buffer(const std::string& str);
-        Buffer(size_t size, Storage& storage);
+        Buffer(Storage& storage, size_t size, uint64_t offset);
 
         Buffer(const Buffer& other);
         Buffer(Buffer&& other);
@@ -45,7 +45,7 @@ namespace diamond {
         char* buffer();
         const char* buffer() const;
 
-        void write_to_storage(Storage& storage) const;
+        void write_to_storage(Storage& storage, uint64_t offset) const;
 
         char operator[](size_t i) const;
 

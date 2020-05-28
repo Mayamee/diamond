@@ -29,14 +29,8 @@ namespace diamond {
     public:
         Storage() = default;
 
-        void write(const char* buffer, size_t n);
-        void write(const Buffer& buffer);
-
-        void read(char* buffer, size_t n);
-        void read(Buffer& buffer, size_t n);
-
-        void seek(size_t n);
-
+        void write(const char* buffer, size_t n, uint64_t offset);
+        void read(char* buffer, size_t n, uint64_t offset);
         size_t size();
 
     protected:

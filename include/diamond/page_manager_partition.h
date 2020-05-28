@@ -24,7 +24,7 @@
 #include <boost/utility.hpp>
 
 #include "diamond/eviction_strategy.h"
-#include "diamond/page_accessors.h"
+#include "diamond/page_accessor.h"
 #include "diamond/page_writer.h"
 
 namespace diamond {
@@ -36,8 +36,9 @@ namespace diamond {
             std::shared_ptr<PageWriter> page_writer,
             std::shared_ptr<EvictionStrategy> eviction_strategy);
 
-        ExclusivePageAccessor get_exclusive_accessor(Page::ID id);
-        SharedPageAccessor get_shared_accessor(Page::ID id);
+        PageAccessor create_page(Page::ID id, Page::Type type);
+
+        PageAccessor get_page_accessor(Page::ID id, PageAccessor::Mode access_mode);
 
         void write_page(const std::shared_ptr<Page>& page);
 
@@ -61,12 +62,6 @@ namespace diamond {
         > _pages;
 
         boost::shared_mutex _mutex;
-
-        std::tuple<
-            std::shared_ptr<Page>,
-            std::shared_ptr<boost::shared_mutex>
-        >
-        get_page(Page::ID id);
     };
 
 } // namespace diamond

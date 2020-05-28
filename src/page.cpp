@@ -64,9 +64,8 @@ namespace diamond {
         if (id == 0) throw std::invalid_argument("page ids must be greater than 0");
 
         if (storage.size() < SIZE * id) return nullptr;
-        storage.seek(file_pos_for_id(id));
 
-        Buffer buffer(SIZE, storage);
+        Buffer buffer(storage, SIZE, file_pos_for_id(id));
         BufferReader buffer_reader(buffer);
 
         std::shared_ptr<Page> page(new Page);
@@ -255,11 +254,17 @@ namespace diamond {
 
     void Page::insert_internal_node_entry(const Buffer& key, ID next_node_id) {
         ensure_type_is(INTERNAL_NODE);
-        size_t space = key.size() + sizeof(next_node_id);
+        size_t space = key.size() + sizeof(ID);
         ensure_space_available(space);
 
         _internal_node_entries->emplace_back(key, next_node_id);
         _size += space;
+    }
+
+    bool Page::can_insert_internal_node_entry(const Buffer& key) const {
+        ensure_type_is(INTERNAL_NODE);
+        size_t space = key.size() + sizeof(ID);
+        return get_remaining_space() >= space;
     }
 
     size_t Page::get_num_leaf_node_entries() const {
@@ -291,17 +296,23 @@ namespace diamond {
 
     void Page::insert_leaf_node_entry(const Buffer& key, ID data_id, size_t data_index) {
         ensure_type_is(LEAF_NODE);
-        size_t space = key.size() + sizeof(data_id) + sizeof(data_index);
+        size_t space = key.size() + sizeof(ID) + sizeof(size_t);
         ensure_space_available(space);
 
         _leaf.entries->emplace_back(key, data_id, data_index);
         _size += space;
     }
 
+    bool Page::can_insert_leaf_node_entry(const Buffer& key) const {
+        ensure_type_is(LEAF_NODE);
+        size_t space = key.size() + sizeof(ID) + sizeof(size_t);
+        return get_remaining_space() >= space;
+    }
+
     void Page::write_to_storage(Storage& storage) const {
         Buffer buffer(Page::SIZE);
         write_to_buffer(buffer);
-        buffer.write_to_storage(storage);
+        buffer.write_to_storage(storage, file_pos());
     }
 
     void Page::write_to_buffer(Buffer& buffer) const {

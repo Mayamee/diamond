@@ -22,16 +22,16 @@
 
 namespace diamond {
 
-    class SyncPageWriter : public PageWriter {
+    class SyncPageWriter final : public PageWriter {
     public:
         SyncPageWriter(Storage& storage);
 
-        virtual void write(const std::shared_ptr<const Page>& page) override;
+        void write(const std::shared_ptr<const Page>& page) override;
     };
 
     class SyncPageWriterFactory : public PageWriterFactory {
     public:
-        virtual std::shared_ptr<PageWriter> create(Storage& storage) const override;
+        std::shared_ptr<PageWriter> create(Storage& storage) const override;
     };
 
 } // namespace diamond

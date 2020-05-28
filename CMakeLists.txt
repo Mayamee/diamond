@@ -35,7 +35,7 @@ add_library(diamond SHARED
     src/lru_eviction_strategy.cpp
     src/memory_storage.cpp
     src/page.cpp
-    src/page_accessors.cpp
+    src/page_accessor.cpp
     src/page_manager.cpp
     src/page_manager_partition.cpp
     src/page_writer.cpp

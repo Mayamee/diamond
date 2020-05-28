@@ -33,14 +33,15 @@ namespace diamond {
 
     class Page {
     public:
-        static const uint16_t SIZE = 8192;
-        static const uint16_t MAX_KEY_SIZE = SIZE / 4;
-
         using ID = uint64_t;
         using Compare = std::function<size_t(const Buffer&, const Buffer&)>;
 
+        static const uint16_t SIZE = 8192;
+        static const uint16_t MAX_KEY_SIZE = SIZE / 4;
+
         enum Type {
             DATA,
+            FREE_LIST,
             INTERNAL_NODE,
             LEAF_NODE
         };
@@ -122,12 +123,14 @@ namespace diamond {
         const InternalNodeEntry& get_internal_node_entry(size_t i) const;
         size_t search_internal_node_entries(const Buffer& key, Compare compare) const;
         void insert_internal_node_entry(const Buffer& key, ID next_node_id);
+        bool can_insert_internal_node_entry(const Buffer& key) const;
 
         size_t get_num_leaf_node_entries() const;
         const std::vector<LeafNodeEntry>* get_leaf_node_entries() const;
         const LeafNodeEntry& get_leaf_node_entry(size_t i) const;
         bool find_leaf_node_entry(const Buffer& key, Compare compare, size_t& res) const;
         void insert_leaf_node_entry(const Buffer& key, ID data_id, size_t data_index);
+        bool can_insert_leaf_node_entry(const Buffer& key) const;
 
         void write_to_storage(Storage& storage) const;
         void write_to_buffer(Buffer& buffer) const;

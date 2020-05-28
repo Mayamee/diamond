@@ -32,7 +32,7 @@ namespace diamond {
         _buffer(new char[size]),
         _owns_buffer(true) {}
 
-    Buffer::Buffer(size_t size, char* buffer)
+    Buffer::Buffer(char* buffer, size_t size)
         : _size(size),
         _buffer(buffer),
         _owns_buffer(false) {}
@@ -44,11 +44,11 @@ namespace diamond {
         std::strcpy(_buffer, str.c_str());
     }
 
-    Buffer::Buffer(size_t size, Storage& storage)
+    Buffer::Buffer(Storage& storage, size_t size, uint64_t offset)
             : _size(size),
             _buffer(new char[size]),
             _owns_buffer(true) {
-        storage.read(_buffer, size);
+        storage.read(_buffer, size, offset);
     }
 
     Buffer::Buffer(const Buffer& other)
@@ -86,8 +86,8 @@ namespace diamond {
         return _buffer;
     }
 
-    void Buffer::write_to_storage(Storage& storage) const {
-        storage.write(_buffer, _size);
+    void Buffer::write_to_storage(Storage& storage, uint64_t offset) const {
+        storage.write(_buffer, _size, offset);
     }
 
     char Buffer::operator[](size_t i) const {

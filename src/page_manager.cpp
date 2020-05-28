@@ -25,7 +25,8 @@ namespace diamond {
             EvictionStrategyFactory& eviction_strategy_factory,
             size_t num_partitions)
             : _storage(storage),
-            _num_partitions(num_partitions) {
+            _num_partitions(num_partitions),
+            _next_page_id(storage.size() / Page::SIZE + 1) {
         for (size_t i = 0; i < _num_partitions; i++) {
             _partitions.push_back(
                 std::make_unique<PageManagerPartition>(
@@ -36,12 +37,13 @@ namespace diamond {
         }
     }
 
-    ExclusivePageAccessor PageManager::get_exclusive_accessor(Page::ID id) {
-        return get_partition(id)->get_exclusive_accessor(id);
+    PageAccessor PageManager::create_page(Page::Type type) {
+        Page::ID id = next_page_id();
+        return get_partition(id)->create_page(id, type);
     }
 
-    SharedPageAccessor PageManager::get_shared_accessor(Page::ID id) {
-        return get_partition(id)->get_shared_accessor(id);
+    PageAccessor PageManager::get_page_accessor(Page::ID id, PageAccessor::Mode access_mode) {
+        return get_partition(id)->get_page_accessor(id, access_mode);
     }
 
     void PageManager::write_page(const std::shared_ptr<Page>& page) {

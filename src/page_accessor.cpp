@@ -14,55 +14,68 @@
 **  You should have received a copy of the GNU General Public License
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-
-#include "diamond/page_accessors.h"
+#include <iostream>
+#include "diamond/page_accessor.h"
 
 namespace diamond {
 
-    ExclusivePageAccessor::~ExclusivePageAccessor() {
-        if (_locked) _mutex->unlock();
+    PageAccessor::~PageAccessor() {
+        if (!_locked) return;
+        if (_shared) {
+            _mutex->unlock_shared();
+        } else {
+            _mutex->unlock();
+        }
     }
 
-    const std::shared_ptr<Page>& ExclusivePageAccessor::page() const {
+    std::shared_ptr<Page>& PageAccessor::page() {
         return _page;
     }
 
-    void ExclusivePageAccessor::unlock() {
-        if (!_locked) return;
+    void PageAccessor::lock() {
+        _mutex->lock();
+        _shared = false;
+        _locked = true;
+    }
+
+    void PageAccessor::unlock() {
         _mutex->unlock();
         _locked = false;
     }
 
-    ExclusivePageAccessor::ExclusivePageAccessor(
-            std::shared_ptr<Page>& page,
-            std::shared_ptr<boost::shared_mutex>& mutex)
-            : _page(page),
-            _mutex(mutex) {
-        _mutex->lock();
+    void PageAccessor::lock_shared() {
+        _mutex->lock_shared();
+        _shared = true;
         _locked = true;
     }
 
-    SharedPageAccessor::~SharedPageAccessor() {
-        if (_locked) _mutex->unlock_shared();
-    }
-
-    const std::shared_ptr<const Page>& SharedPageAccessor::page() const {
-        return _page;
-    }
-
-    void SharedPageAccessor::unlock() {
-        if (!_locked) return;
+    void PageAccessor::unlock_shared() {
         _mutex->unlock_shared();
         _locked = false;
     }
 
-    SharedPageAccessor::SharedPageAccessor(
+    bool PageAccessor::locked() const {
+        return _locked;
+    }
+
+    bool PageAccessor::shared() const {
+        return _shared;
+    }
+
+    PageAccessor::PageAccessor(
             std::shared_ptr<Page>& page,
-            std::shared_ptr<boost::shared_mutex>& mutex)
+            std::shared_ptr<boost::shared_mutex>& mutex,
+            Mode mode)
             : _page(page),
             _mutex(mutex) {
-        _mutex->lock_shared();
-        _locked = true;
+        switch (mode) {
+        case EXCLUSIVE:
+            lock();
+            break;
+        case SHARED:
+            lock_shared();
+            break;
+        }
     }
 
 } // namespace diamond
