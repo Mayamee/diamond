@@ -29,44 +29,34 @@ namespace diamond {
         _eviction_strategy(eviction_strategy) {}
 
     PageAccessor PageManagerPartition::create_page(Page::ID id, Page::Type type) {
-        {
-            boost::shared_lock<boost::shared_mutex> lock(_mutex);
-            if (_pages.find(id) != _pages.end()) {
-                throw std::logic_error("page with the provided id already exists");
-            }
+        boost::lock_guard<boost::mutex> lock(_mutex);
+        if (_pages.find(id) != _pages.end()) {
+            throw std::logic_error("page with the provided id already exists");
         }
-
         std::shared_ptr<Page> page = Page::new_page(id, type);
+        _pages.emplace(id, page);
+        _eviction_strategy->track(id);
         _page_writer->write(page);
-        {
-            boost::unique_lock<boost::shared_mutex> lock(_mutex);
-            _pages.emplace(id, page);
-            _eviction_strategy->track(id);
-            ManagedPage& managed_page = _pages.at(id);
-            return PageAccessor(
-                managed_page.page,
-                managed_page.mutex,
-                PageAccessor::EXCLUSIVE);
-        }
+        ManagedPage& managed_page = _pages.at(id);
+        return PageAccessor(
+            managed_page.page,
+            managed_page.mutex,
+            PageAccessor::EXCLUSIVE);
     }
 
     PageAccessor PageManagerPartition::get_page_accessor(Page::ID id, PageAccessor::Mode access_mode) {
-        std::shared_ptr<Page> page;
-        {
-            boost::unique_lock<boost::shared_mutex> lock(_mutex);
-            if (_pages.find(id) != _pages.end()) {
-                ManagedPage& managed_page = _pages.at(id);
-                _eviction_strategy->use(id);
-                return PageAccessor(
-                    managed_page.page,
-                    managed_page.mutex,
-                    access_mode);
-            }
+        boost::lock_guard<boost::mutex> lock(_mutex);
+        if (_pages.find(id) != _pages.end()) {
+            ManagedPage& managed_page = _pages.at(id);
+            _eviction_strategy->use(id);
+            return PageAccessor(
+                managed_page.page,
+                managed_page.mutex,
+                access_mode);
         }
 
-        page = Page::new_page_from_storage(id, _storage);
+        std::shared_ptr<Page> page = Page::new_page_from_storage(id, _storage);
         if (page) {
-            boost::unique_lock<boost::shared_mutex> lock(_mutex);
             _pages.emplace(page->get_id(), page);
             _eviction_strategy->track(id);
             ManagedPage& managed_page = _pages.at(id);
@@ -80,17 +70,15 @@ namespace diamond {
     }
 
     void PageManagerPartition::write_page(const std::shared_ptr<Page>& page) {
-        {
-            boost::shared_lock<boost::shared_mutex> lock(_mutex);
-            if (_pages.find(page->get_id()) == _pages.end()) {
-                throw std::logic_error("trying to write unmanaged page");
-            }
+        boost::lock_guard<boost::mutex> lock(_mutex);
+        if (_pages.find(page->get_id()) == _pages.end()) {
+            throw std::logic_error("trying to write unmanaged page");
         }
         _page_writer->write(page);
     }
 
     bool PageManagerPartition::is_page_managed(Page::ID id) {
-        boost::shared_lock<boost::shared_mutex> lock(_mutex);
+        boost::lock_guard<boost::mutex> lock(_mutex);
         return _pages.find(id) != _pages.end();
     }
 

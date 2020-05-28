@@ -61,7 +61,7 @@ namespace diamond {
             ManagedPage
         > _pages;
 
-        boost::shared_mutex _mutex;
+        boost::mutex _mutex;
     };
 
 } // namespace diamond

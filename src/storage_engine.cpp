@@ -77,6 +77,7 @@ namespace diamond {
                     // search for free list node
                     return;
                 }
+                // split here
                 break;
             }
             default:
