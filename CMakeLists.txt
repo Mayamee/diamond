@@ -30,6 +30,7 @@ include_directories(${Boost_INCLUDE_DIRS})
 add_library(diamond SHARED
     src/bg_page_writer.cpp
     src/buffer.cpp
+    src/eviction_strategy.cpp
     src/exception.cpp
     src/file_storage.cpp
     src/lru_eviction_strategy.cpp
@@ -47,6 +48,7 @@ add_library(diamond SHARED
 
 target_link_libraries(diamond
     pthread
+    stdc++fs
     ${Boost_LIBRARIES})
 
 if (DIAMOND_BUILD_TESTS)

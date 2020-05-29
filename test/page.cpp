@@ -23,7 +23,7 @@
 namespace {
 
     TEST(page_tests, write_and_read_data_page) {
-        using TestInput = std::tuple<diamond::Buffer, diamond::Page::ID, size_t>;
+        using TestInput = std::tuple<diamond::Buffer, diamond::PageID, size_t>;
         std::vector<TestInput> data_entries = {
             { diamond::Buffer("wowowwowowoww"), 0, 0 },
             { diamond::Buffer("it is indeed a buffer"), 0, 0 },
@@ -33,8 +33,7 @@ namespace {
 
         diamond::MemoryStorage storage;
 
-        std::shared_ptr<diamond::Page> page1 =
-            diamond::Page::new_data_page(1);
+        diamond::Page page1(1, diamond::PageType::DATA);
 
         for (size_t i = 0; i < data_entries.size(); i++) {
             const TestInput& data_entry = data_entries.at(i);
@@ -46,14 +45,13 @@ namespace {
 
         page1->write_to_storage(storage);
 
-        std::shared_ptr<diamond::Page> page2 =
-            diamond::Page::new_page_from_storage(1, storage);
+        diamond::Page page2 = diamond::Page::from_storage(1, storage);
 
-        ASSERT_EQ(page2->get_type(), diamond::Page::DATA);
+        ASSERT_EQ(page2->get_type(), diamond::PageType::DATA);
         ASSERT_EQ(page2->get_num_data_entries(), data_entries.size());
         for (size_t i = 0; i < page1->get_num_data_entries(); i++) {
             const TestInput& data_entry = data_entries.at(i);
-            const diamond::Page::DataEntry& entry = page2->get_data_entry(i);
+            const diamond::DataEntry& entry = page2->get_data_entry(i);
 
             EXPECT_EQ(entry.data(), std::get<0>(data_entry));
             EXPECT_EQ(entry.overflow_id(), std::get<1>(data_entry));
@@ -62,7 +60,7 @@ namespace {
     }
 
     TEST(page_tests, write_and_read_internal_node_page) {
-        using TestInput = std::tuple<diamond::Buffer, diamond::Page::ID>;
+        using TestInput = std::tuple<diamond::Buffer, diamond::PageID>;
         std::vector<TestInput> internal_nodes = {
             { diamond::Buffer("key1"), 2 },
             { diamond::Buffer("key2"), 3 },
@@ -72,8 +70,7 @@ namespace {
 
         diamond::MemoryStorage storage;
 
-        std::shared_ptr<diamond::Page> page1 =
-            diamond::Page::new_internal_node_page(1);
+        diamond::Page page1(1, diamond::PageType::INTERNAL_NODE);
 
         for (size_t i = 0; i < internal_nodes.size(); i++) {
             const TestInput& internal_node = internal_nodes.at(i);
@@ -84,14 +81,13 @@ namespace {
 
         page1->write_to_storage(storage);
 
-        std::shared_ptr<diamond::Page> page2 =
-            diamond::Page::new_page_from_storage(1, storage);
+        diamond::Page page2 = diamond::Page::from_storage(1, storage);
 
-        ASSERT_EQ(page2->get_type(), diamond::Page::INTERNAL_NODE);
+        ASSERT_EQ(page2->get_type(), diamond::PageType::INTERNAL_NODE);
         ASSERT_EQ(page2->get_num_internal_node_entries(), internal_nodes.size());
         for (size_t i = 0; i < page1->get_num_internal_node_entries(); i++) {
             const TestInput& internal_node = internal_nodes.at(i);
-            const diamond::Page::InternalNodeEntry& entry = page2->get_internal_node_entry(i);
+            const diamond::InternalNodeEntry& entry = page2->get_internal_node_entry(i);
 
             EXPECT_EQ(entry.key(), std::get<0>(internal_node));
             EXPECT_EQ(entry.next_node_id(), std::get<1>(internal_node));
@@ -99,7 +95,7 @@ namespace {
     }
 
     TEST(page_tests, write_and_read_leaf_node_page) {
-        using TestInput = std::tuple<diamond::Buffer, diamond::Page::ID, size_t>;
+        using TestInput = std::tuple<diamond::Buffer, diamond::PageID, size_t>;
         std::vector<TestInput> leaf_nodes = {
             { diamond::Buffer("key1"), 2, 0 },
             { diamond::Buffer("key2"), 2, 1 },
@@ -109,8 +105,7 @@ namespace {
 
         diamond::MemoryStorage storage;
 
-        std::shared_ptr<diamond::Page> page1 =
-            diamond::Page::new_leaf_node_page(1);
+        diamond::Page page1(1, diamond::PageType::LEAF_NODE);
 
         for (size_t i = 0; i < leaf_nodes.size(); i++) {
             const TestInput& leaf_node = leaf_nodes.at(i);
@@ -122,14 +117,13 @@ namespace {
 
         page1->write_to_storage(storage);
 
-        std::shared_ptr<diamond::Page> page2 =
-            diamond::Page::new_page_from_storage(1, storage);
+        diamond::Page page2 = diamond::Page::from_storage(1, storage);
 
-        ASSERT_EQ(page2->get_type(), diamond::Page::LEAF_NODE);
+        ASSERT_EQ(page2->get_type(), diamond::PageType::LEAF_NODE);
         ASSERT_EQ(page2->get_num_leaf_node_entries(), leaf_nodes.size());
         for (size_t i = 0; i < leaf_nodes.size(); i++) {
             const TestInput& leaf_node = leaf_nodes.at(i);
-            const diamond::Page::LeafNodeEntry& entry = page2->get_leaf_node_entry(i);
+            const diamond::LeafNodeEntry& entry = page2->get_leaf_node_entry(i);
 
             EXPECT_EQ(entry.key(), std::get<0>(leaf_node));
             EXPECT_EQ(entry.data_id(), std::get<1>(leaf_node));
@@ -138,24 +132,21 @@ namespace {
     }
 
     TEST(page_tests, throws_when_data_page_does_not_have_enough_space) {
-        std::shared_ptr<diamond::Page> page =
-            diamond::Page::new_data_page(1);
+        diamond::Page page(1, diamond::PageType::DATA);
         diamond::Buffer buffer(page->get_remaining_space() + 1);
         EXPECT_THROW(page->insert_data_entry(buffer, 0, 0), std::logic_error);
     }
 
-    TEST(page_tests, throws_when_leaf_node_page_does_not_have_enough_space) {
-        std::shared_ptr<diamond::Page> page =
-            diamond::Page::new_leaf_node_page(1);
-        diamond::Buffer buffer(page->get_remaining_space() + 1);
-        EXPECT_THROW(page->insert_leaf_node_entry(buffer, 1, 0), std::logic_error);
-    }
-
     TEST(page_tests, throws_when_internal_node_page_does_not_have_enough_space) {
-        std::shared_ptr<diamond::Page> page =
-            diamond::Page::new_internal_node_page(1);
+        diamond::Page page(1, diamond::PageType::INTERNAL_NODE);
         diamond::Buffer buffer(page->get_remaining_space() + 1);
         EXPECT_THROW(page->insert_internal_node_entry(buffer, 0), std::logic_error);
+    }
+
+    TEST(page_tests, throws_when_leaf_node_page_does_not_have_enough_space) {
+        diamond::Page page(1, diamond::PageType::LEAF_NODE);
+        diamond::Buffer buffer(page->get_remaining_space() + 1);
+        EXPECT_THROW(page->insert_leaf_node_entry(buffer, 1, 0), std::logic_error);
     }
 
 } // namespace

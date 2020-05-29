@@ -26,16 +26,16 @@ namespace diamond {
 
     class PageManagerPartition;
 
+    enum class PageAccessorMode {
+        EXCLUSIVE,
+        SHARED
+    };
+
     class PageAccessor {
     public:
-        enum Mode {
-            EXCLUSIVE,
-            SHARED
-        };
-
         ~PageAccessor();
 
-        std::shared_ptr<Page>& page();
+        Page& page();
 
         void lock();
         void unlock();
@@ -49,15 +49,15 @@ namespace diamond {
     private:
         bool _locked;
         bool _shared;
-        std::shared_ptr<Page> _page;
+        Page _page;
         std::shared_ptr<boost::shared_mutex> _mutex;
 
         friend class PageManagerPartition;
 
         PageAccessor(
-            std::shared_ptr<Page>& page,
+            Page& page,
             std::shared_ptr<boost::shared_mutex>& mutex,
-            Mode mode);
+            PageAccessorMode mode);
     };
 
 } // namespace diamond

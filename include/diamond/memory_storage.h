@@ -36,7 +36,7 @@ namespace diamond {
         void write_impl(const char* buffer, size_t n) override;
         void read_impl(char* buffer, size_t n) override;
         void seek_impl(size_t n) override;
-        size_t size_impl() override;
+        uint64_t size_impl() override;
     };
 
 } // namespace diamond

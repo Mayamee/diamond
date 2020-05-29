@@ -28,7 +28,7 @@ namespace diamond {
         }
     }
 
-    std::shared_ptr<Page>& PageAccessor::page() {
+    Page& PageAccessor::page() {
         return _page;
     }
 
@@ -63,16 +63,16 @@ namespace diamond {
     }
 
     PageAccessor::PageAccessor(
-            std::shared_ptr<Page>& page,
+            Page& page,
             std::shared_ptr<boost::shared_mutex>& mutex,
-            Mode mode)
+            PageAccessorMode mode)
             : _page(page),
             _mutex(mutex) {
         switch (mode) {
-        case EXCLUSIVE:
+        case PageAccessorMode::EXCLUSIVE:
             lock();
             break;
-        case SHARED:
+        case PageAccessorMode::SHARED:
             lock_shared();
             break;
         }

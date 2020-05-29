@@ -19,23 +19,33 @@
 
 namespace diamond {
 
-    Page::ID LRUEvictionStrategy::evict() {
-        Page::ID id = _list.back();
-        _iters.erase(id);
-        _list.pop_back();
-        return id;
-    }
-
-    void LRUEvictionStrategy::use(Page::ID id) {
+    void LRUEvictionStrategy::update(PageID id) {
         _list.splice(
             _list.begin(),
             _list,
             _iters.at(id));
     }
 
-    void LRUEvictionStrategy::track(Page::ID id) {
+    void LRUEvictionStrategy::add(PageID id) {
         _list.push_front(id);
         _iters[id] = _list.begin();
+    }
+
+    PageID LRUEvictionStrategy::next(PageID after) {
+        if (after != INVALID_PAGE) {
+            auto iter = _iters.at(after);
+            if (iter != _list.end()) {
+                return *iter;
+            }
+            return INVALID_PAGE;
+        } else {
+            return *_list.begin();
+        }
+    }
+
+    void LRUEvictionStrategy::remove(PageID id) {
+        _list.erase(_iters[id]);
+        _iters.erase(id);
     }
 
     std::shared_ptr<EvictionStrategy> LRUEvictionStrategyFactory::create() const {

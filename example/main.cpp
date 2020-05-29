@@ -20,21 +20,17 @@
 #include "diamond/file_storage.h"
 #include "diamond/storage_engine.h"
 
+static const uint32_t bg_writer_delay = 500;
+
 int main() {
 
     diamond::FileStorage storage("data");
-
-    diamond::BgPageWriter::Options options;
-    options.delay = 500;
-    diamond::BgPageWriterFactory page_writer_factory(options);
-
+    diamond::BgPageWriterFactory page_writer_factory(bg_writer_delay);
     diamond::LRUEvictionStrategyFactory eviction_strategy_factory;
-
     diamond::PageManager manager(
         storage,
         page_writer_factory,
         eviction_strategy_factory);
-
     diamond::StorageEngine engine(manager);
 
     return 0;

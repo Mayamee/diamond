@@ -31,10 +31,10 @@ namespace diamond {
         _ss.seekg(n);
     }
 
-    size_t MemoryStorage::size_impl() {
-        size_t pos = _ss.tellg();
+    uint64_t MemoryStorage::size_impl() {
+        std::streampos pos = _ss.tellg();
         _ss.seekg(0, std::ios::end);
-        size_t size = _ss.tellg();
+        std::streampos size = _ss.tellg() - pos;
         _ss.seekg(pos);
         return size;
     }

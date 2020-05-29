@@ -33,21 +33,23 @@ namespace diamond {
     class PageManager : boost::noncopyable {
     public:
         static const size_t DEFAULT_NUM_PARTITIONS = 128;
+        static const size_t MAX_NUM_PAGES_IN_PARTITION = 100;
 
         PageManager(
             Storage& storage,
             PageWriterFactory& page_writer_factory,
             EvictionStrategyFactory& eviction_strategy_factory,
-            size_t num_partitions = DEFAULT_NUM_PARTITIONS);
+            size_t num_partitions = DEFAULT_NUM_PARTITIONS,
+            size_t max_num_pages_in_partition = MAX_NUM_PAGES_IN_PARTITION);
 
-        PageAccessor create_page(Page::Type type);
+        PageAccessor create_page(PageType type);
 
-        PageAccessor get_page_accessor(Page::ID id, PageAccessor::Mode access_mode);
+        PageAccessor get_page_accessor(PageID id, PageAccessorMode access_mode);
 
-        void write_page(const std::shared_ptr<Page>& page);
-        void write_pages(const std::vector<std::shared_ptr<Page>>& pages);
+        void write_page(const Page& page);
+        void write_pages(const std::vector<Page>& pages);
 
-        bool is_page_managed(Page::ID id);
+        bool is_page_managed(PageID id);
 
         Storage& storage();
         const Storage& storage() const;
@@ -55,15 +57,15 @@ namespace diamond {
     private:
         Storage& _storage;
         size_t _num_partitions;
-        std::atomic<Page::ID> _next_page_id;
+        std::atomic<PageID> _next_page_id;
 
         std::vector<std::unique_ptr<PageManagerPartition>> _partitions;
 
-        std::unique_ptr<PageManagerPartition>& get_partition(Page::ID id) {
+        std::unique_ptr<PageManagerPartition>& get_partition(PageID id) {
             return _partitions.at(id % _num_partitions);
         }
 
-        Page::ID next_page_id() {
+        PageID next_page_id() {
             return _next_page_id++;
         }
     };

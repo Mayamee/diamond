@@ -18,8 +18,6 @@
 #ifndef _DIAMOND_PAGE_MANAGER_PARTITION_H
 #define _DIAMOND_PAGE_MANAGER_PARTITION_H
 
-#include <unordered_map>
-
 #include <boost/thread.hpp>
 #include <boost/utility.hpp>
 
@@ -34,34 +32,38 @@ namespace diamond {
         PageManagerPartition(
             Storage& storage,
             std::shared_ptr<PageWriter> page_writer,
-            std::shared_ptr<EvictionStrategy> eviction_strategy);
+            std::shared_ptr<EvictionStrategy> eviction_strategy,
+            size_t max_num_pages);
 
-        PageAccessor create_page(Page::ID id, Page::Type type);
+        PageAccessor create_page(PageID id, PageType type);
 
-        PageAccessor get_page_accessor(Page::ID id, PageAccessor::Mode access_mode);
+        PageAccessor get_page_accessor(PageID id, PageAccessorMode access_mode);
 
-        void write_page(const std::shared_ptr<Page>& page);
+        void write_page(const Page& page);
 
-        bool is_page_managed(Page::ID id);
+        bool is_page_managed(PageID id);
 
     private:
         Storage& _storage;
         std::shared_ptr<PageWriter> _page_writer;
         std::shared_ptr<EvictionStrategy> _eviction_strategy;
+        size_t _max_num_pages;
 
         struct ManagedPage {
-            ManagedPage(std::shared_ptr<Page> _page);
+            ManagedPage(const Page& _page);
 
-            std::shared_ptr<Page> page;
+            Page page;
             std::shared_ptr<boost::shared_mutex> mutex;
         };
 
         std::unordered_map<
-            Page::ID,
+            PageID,
             ManagedPage
         > _pages;
 
         boost::mutex _mutex;
+
+        void add_page(const Page& page);
     };
 
 } // namespace diamond

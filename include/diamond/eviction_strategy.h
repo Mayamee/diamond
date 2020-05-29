@@ -18,15 +18,29 @@
 #ifndef _DIAMOND_EVICTION_STRATEGY_H
 #define _DIAMOND_EVICTION_STRATEGY_H
 
+#include <exception>
+#include <unordered_map>
+
 #include "diamond/page.h"
 
 namespace diamond {
 
     class EvictionStrategy {
     public:
-        virtual Page::ID evict() = 0;
-        virtual void use(Page::ID id) = 0;
-        virtual void track(Page::ID id) = 0;
+        PageID evict();
+        virtual void update(PageID id) = 0;
+        void track(const Page& page);
+
+    protected:
+        virtual void add(PageID id) = 0;
+        virtual PageID next(PageID after = INVALID_PAGE) = 0;
+        virtual void remove(PageID id) = 0;
+
+    private:
+        std::unordered_map<
+            PageID,
+            Page
+        > _tracked_pages;
     };
 
     class EvictionStrategyFactory {

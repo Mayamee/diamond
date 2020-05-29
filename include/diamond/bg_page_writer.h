@@ -30,21 +30,17 @@ namespace diamond {
 
     class BgPageWriter : public PageWriter, boost::noncopyable  {
     public:
-        struct Options {
-            uint32_t delay = 200;
-            uint32_t max_pages = 100;
-        };
+        static const uint32_t DEFAULT_DELAY = 200;
 
-        BgPageWriter(Storage& storage, const Options& options);
+        BgPageWriter(Storage& storage, uint32_t delay = DEFAULT_DELAY);
         virtual ~BgPageWriter();
 
-        virtual void write(const std::shared_ptr<const Page>& page) override;
+        virtual void write(const Page& page) override;
 
     private:
         bool _timer_running;
         Timer _timer;
         boost::mutex _mutex;
-        uint32_t _max_pages;
 
         struct PendingWrite {
             PendingWrite(Buffer _buffer, uint64_t _pos);
@@ -59,12 +55,12 @@ namespace diamond {
 
     class BgPageWriterFactory : public PageWriterFactory {
     public:
-        BgPageWriterFactory(const BgPageWriter::Options& options);
+        BgPageWriterFactory(uint32_t delay = BgPageWriter::DEFAULT_DELAY);
 
         virtual std::shared_ptr<PageWriter> create(Storage& storage) const override;
 
     private:
-        BgPageWriter::Options _options;
+        uint32_t _delay;
     };
 
 } // namespace diamond

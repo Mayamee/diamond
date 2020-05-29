@@ -27,14 +27,14 @@ namespace diamond {
     public:
         StorageEngine(
             PageManager& page_manager,
-            Page::Compare compare_func = &Page::default_compare);
+            PageCompare compare_func = &page_default_compare);
 
         Buffer get(const Buffer& key);
         void insert(const Buffer& key, const Buffer& val);
 
     private:
         PageManager& _manager;
-        Page::Compare _compare_func;
+        PageCompare _compare_func;
     };
 
 }

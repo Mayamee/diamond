@@ -15,12 +15,22 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+#include <filesystem>
+
 #include "diamond/file_storage.h"
 
 namespace diamond {
 
-    FileStorage::FileStorage(const std::string& file_name)
-        : _fs(file_name) {}
+    FileStorage::FileStorage(const std::string& file_name) {
+        if (std::filesystem::exists(file_name)) {
+            _fs.open(file_name);
+        } else {
+            // stupid way of making it create a file
+            _fs.open(file_name, std::ios::out);
+            _fs.close();
+            _fs.open(file_name);
+        }
+    }
 
     void FileStorage::write_impl(const char* buffer, size_t n) {
         _fs.write(buffer, n);
@@ -34,10 +44,10 @@ namespace diamond {
         _fs.seekg(n);
     }
 
-    size_t FileStorage::size_impl() {
-        size_t pos = _fs.tellg();
+    uint64_t FileStorage::size_impl() {
+        std::streampos pos = _fs.tellg();
         _fs.seekg(0, std::ios::end);
-        size_t size = _fs.tellg();
+        std::streampos size = _fs.tellg() - pos;
         _fs.seekg(pos);
         return size;
     }

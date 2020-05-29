@@ -15,34 +15,32 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _DIAMOND_STORAGE_H
-#define _DIAMOND_STORAGE_H
-
-#include <boost/thread.hpp>
-#include <boost/utility.hpp>
-
-#include "diamond/buffer.h"
+#include "diamond/eviction_strategy.h"
 
 namespace diamond {
 
-    class Storage : boost::noncopyable {
-    public:
-        Storage() = default;
+    PageID EvictionStrategy::evict() {
+        PageID to_evict = next();
+        while (to_evict != INVALID_PAGE) {
+            if (_tracked_pages.at(to_evict)->usage_count() == 1) {
+                _tracked_pages.erase(to_evict);
+                remove(to_evict);
+                return to_evict;
+            }
 
-        void write(const char* buffer, size_t n, uint64_t offset);
-        void read(char* buffer, size_t n, uint64_t offset);
-        uint64_t size();
+            to_evict = next(to_evict);
+        }
 
-    protected:
-        virtual void write_impl(const char* buffer, size_t n) = 0;
-        virtual void read_impl(char* buffer, size_t n) = 0;
-        virtual void seek_impl(size_t n) = 0;
-        virtual uint64_t size_impl() = 0;
+        return to_evict;
+    }
 
-    private:
-        boost::mutex _mutex;
-    };
+    void EvictionStrategy::track(const Page& page) {
+        PageID id = page->get_id();
+        if (_tracked_pages.find(id) != _tracked_pages.end()) {
+            throw std::logic_error("already tracking this page");
+        }
+        _tracked_pages.emplace(id, page);
+        add(id);
+    }
 
 } // namespace diamond
-
-#endif // _DIAMOND_STORAGE_H

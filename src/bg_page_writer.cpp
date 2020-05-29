@@ -22,13 +22,12 @@
 
 namespace diamond {
 
-    BgPageWriter::BgPageWriter(Storage& storage, const Options& options)
+    BgPageWriter::BgPageWriter(Storage& storage, uint32_t delay)
         : PageWriter(storage),
         _timer_running(false),
         _timer(
             std::bind(&BgPageWriter::bg_task, this),
-            boost::posix_time::milliseconds(options.delay)),
-        _max_pages(options.max_pages) {}
+            boost::posix_time::milliseconds(delay)) {}
 
     BgPageWriter::~BgPageWriter() {
         while (_queue.size()) {
@@ -40,8 +39,8 @@ namespace diamond {
         }
     }
 
-    void BgPageWriter::write(const std::shared_ptr<const Page>& page) {
-        Buffer buffer(Page::SIZE);
+    void BgPageWriter::write(const Page& page) {
+        Buffer buffer(PAGE_SIZE);
         page->write_to_buffer(buffer);
         {
             boost::lock_guard<boost::mutex> lock(_mutex);
@@ -75,11 +74,11 @@ namespace diamond {
         : buffer(std::move(_buffer)), 
         pos(_pos) {}
 
-    BgPageWriterFactory::BgPageWriterFactory(const BgPageWriter::Options& options)
-        : _options(options) {}
+    BgPageWriterFactory::BgPageWriterFactory(uint32_t delay)
+        : _delay(delay) {}
 
     std::shared_ptr<PageWriter> BgPageWriterFactory::create(Storage& storage) const {
-        return std::make_shared<BgPageWriter>(storage, _options);
+        return std::make_shared<BgPageWriter>(storage, _delay);
     }
 
 } // namespace diamond

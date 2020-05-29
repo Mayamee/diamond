@@ -26,7 +26,7 @@ namespace diamond {
     public:
         SyncPageWriter(Storage& storage);
 
-        void write(const std::shared_ptr<const Page>& page) override;
+        void write(const Page& page) override;
     };
 
     class SyncPageWriterFactory : public PageWriterFactory {

@@ -23,40 +23,42 @@ namespace diamond {
             Storage& storage,
             PageWriterFactory& page_writer_factory,
             EvictionStrategyFactory& eviction_strategy_factory,
-            size_t num_partitions)
+            size_t num_partitions,
+            size_t max_num_pages_in_partition)
             : _storage(storage),
             _num_partitions(num_partitions),
-            _next_page_id(storage.size() / Page::SIZE + 1) {
+            _next_page_id(storage.size() / PAGE_SIZE + 1) {
         for (size_t i = 0; i < _num_partitions; i++) {
             _partitions.push_back(
                 std::make_unique<PageManagerPartition>(
                     storage,
                     page_writer_factory.create(storage),
-                    eviction_strategy_factory.create()
+                    eviction_strategy_factory.create(),
+                    max_num_pages_in_partition
                 ));
         }
     }
 
-    PageAccessor PageManager::create_page(Page::Type type) {
-        Page::ID id = next_page_id();
+    PageAccessor PageManager::create_page(PageType type) {
+        PageID id = next_page_id();
         return get_partition(id)->create_page(id, type);
     }
 
-    PageAccessor PageManager::get_page_accessor(Page::ID id, PageAccessor::Mode access_mode) {
+    PageAccessor PageManager::get_page_accessor(PageID id, PageAccessorMode access_mode) {
         return get_partition(id)->get_page_accessor(id, access_mode);
     }
 
-    void PageManager::write_page(const std::shared_ptr<Page>& page) {
+    void PageManager::write_page(const Page& page) {
         get_partition(page->get_id())->write_page(page);
     }
 
-    void PageManager::write_pages(const std::vector<std::shared_ptr<Page>>& pages) {
-        for (const std::shared_ptr<Page>& page : pages) {
+    void PageManager::write_pages(const std::vector<Page>& pages) {
+        for (const Page& page : pages) {
             write_page(page);
         }
     }
 
-    bool PageManager::is_page_managed(Page::ID id) {
+    bool PageManager::is_page_managed(PageID id) {
         return get_partition(id)->is_page_managed(id);
     }
 

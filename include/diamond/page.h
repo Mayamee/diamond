@@ -15,129 +15,130 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _DIAMOND_STORAGE_PAGE_H
-#define _DIAMOND_STORAGE_PAGE_H
+#ifndef _DIAMOND_STORAGE_PageRep_H
+#define _DIAMOND_STORAGE_PageRep_H
 
-#include <algorithm>
-#include <ctime>
+#include <atomic>
 #include <exception>
 #include <functional>
 #include <memory>
-#include <tuple>
 #include <vector>
+
+#include <boost/utility.hpp>
 
 #include "diamond/buffer.h"
 #include "diamond/storage.h"
 
 namespace diamond {
 
-    class Page {
+    using PageID = uint64_t;
+    using PageCompare = std::function<size_t(const Buffer&, const Buffer&)>;
+
+    const PageID INVALID_PAGE = 0;
+
+    const uint16_t PAGE_SIZE = 8192;
+    const uint16_t PAGE_MAX_KEY_SIZE = PAGE_SIZE / 4;
+
+    enum class PageType {
+        DATA,
+        INTERNAL_NODE,
+        LEAF_NODE
+    };
+
+    class Page;
+
+    size_t page_default_compare(const Buffer& b0, const Buffer& b1);
+    uint64_t page_file_pos_for_id(PageID id);
+
+    class DataEntry {
     public:
-        using ID = uint64_t;
-        using Compare = std::function<size_t(const Buffer&, const Buffer&)>;
+        DataEntry(Buffer data, PageID overflow_id = 0, size_t overflow_index = 0);
 
-        static const uint16_t SIZE = 8192;
-        static const uint16_t MAX_KEY_SIZE = SIZE / 4;
+        size_t data_size() const;
+        const Buffer& data() const;
 
-        enum Type {
-            DATA,
-            FREE_LIST,
-            INTERNAL_NODE,
-            LEAF_NODE
-        };
+        bool overflows() const;
+        PageID overflow_id() const;
+        size_t overflow_index() const;
 
-        class DataEntry {
-        public:
-            DataEntry(Buffer data, ID overflow_id = 0, size_t overflow_index = 0);
+    private:
+        Buffer _data;
+        PageID _overflow_id;
+        size_t _overflow_index;
+    };
 
-            size_t data_size() const;
-            const Buffer& data() const;
+    class InternalNodeEntry {
+    public:
+        InternalNodeEntry(Buffer key, PageID next_node_id);
 
-            bool overflows() const;
-            ID overflow_id() const;
-            size_t overflow_index() const;
+        size_t key_size() const;
+        const Buffer& key() const;
 
-        private:
-            Buffer _data;
-            ID _overflow_id;
-            size_t _overflow_index;
-        };
+        PageID next_node_id() const;
 
-        class InternalNodeEntry {
-        public:
-            InternalNodeEntry(Buffer key, ID next_node_id);
+    private:
+        Buffer _key;
+        PageID _next_node_id;
+    };
 
-            size_t key_size() const;
-            const Buffer& key() const;
+    class LeafNodeEntry {
+    public:
+        LeafNodeEntry(Buffer key, PageID data_id, size_t data_index);
 
-            ID next_node_id() const;
+        size_t key_size() const;
+        const Buffer& key() const;
 
-        private:
-            Buffer _key;
-            ID _next_node_id;
-        };
+        PageID data_id() const;
+        size_t data_index() const;
 
-        class LeafNodeEntry {
-        public:
-            LeafNodeEntry(Buffer key, ID data_id, size_t data_index);
+    private:
+        Buffer _key;
+        PageID _data_id;
+        size_t _data_index;
+    };
 
-            size_t key_size() const;
-            const Buffer& key() const;
+    class PageRep : boost::noncopyable {
+    public:
+        ~PageRep();
 
-            ID data_id() const;
-            size_t data_index() const;
+        PageType get_type() const;
+        PageID get_id() const;
 
-        private:
-            Buffer _key;
-            ID _data_id;
-            size_t _data_index;
-        };
-
-        static std::shared_ptr<Page> new_page(ID id, Type type);
-        static std::shared_ptr<Page> new_data_page(ID id);
-        static std::shared_ptr<Page> new_internal_node_page(ID id);
-        static std::shared_ptr<Page> new_leaf_node_page(ID id);
-
-        static std::shared_ptr<Page> new_page_from_storage(ID id, Storage& storage);
-
-        static uint64_t file_pos_for_id(Page::ID id);
-
-        static size_t default_compare(const Buffer& b0, const Buffer& b1);
-
-        ~Page();
-
-        Type get_type() const;
-        ID get_id() const;
         uint16_t get_size() const;
         uint16_t get_remaining_space() const;
         size_t header_size() const;
+
         uint64_t file_pos() const;
+
+        uint64_t usage_count() const;
 
         size_t get_num_data_entries() const;
         const std::vector<DataEntry>* get_data_entries() const;
         const DataEntry& get_data_entry(size_t i) const;
-        void insert_data_entry(const Buffer& data, ID overflow_id = 0, size_t overflow_index = 0);
+        void insert_data_entry(const Buffer& data, PageID overflow_id = 0, size_t overflow_index = 0);
 
         size_t get_num_internal_node_entries() const;
         const std::vector<InternalNodeEntry>* get_internal_node_entries() const;
         const InternalNodeEntry& get_internal_node_entry(size_t i) const;
-        size_t search_internal_node_entries(const Buffer& key, Compare compare) const;
-        void insert_internal_node_entry(const Buffer& key, ID next_node_id);
+        size_t search_internal_node_entries(const Buffer& key, PageCompare compare) const;
+        void insert_internal_node_entry(const Buffer& key, PageID next_node_id);
         bool can_insert_internal_node_entry(const Buffer& key) const;
 
         size_t get_num_leaf_node_entries() const;
         const std::vector<LeafNodeEntry>* get_leaf_node_entries() const;
         const LeafNodeEntry& get_leaf_node_entry(size_t i) const;
-        bool find_leaf_node_entry(const Buffer& key, Compare compare, size_t& res) const;
-        void insert_leaf_node_entry(const Buffer& key, ID data_id, size_t data_index);
+        bool find_leaf_node_entry(const Buffer& key, PageCompare compare, size_t& res) const;
+        void insert_leaf_node_entry(const Buffer& key, PageID data_id, size_t data_index);
         bool can_insert_leaf_node_entry(const Buffer& key) const;
 
         void write_to_storage(Storage& storage) const;
         void write_to_buffer(Buffer& buffer) const;
 
     private:
-        Type _type;
-        ID _id;
+        friend class Page;
+
+        PageID _id;
+        PageType _type;
         uint16_t _size;
         union {
             std::vector<DataEntry>* _data_entries;
@@ -147,10 +148,13 @@ namespace diamond {
                 uint64_t next;
             } _leaf;
         };
+        std::atomic_uint64_t _use_count;
 
-        Page() = default;
+        static PageRep* from_storage(PageID id, Storage& storage);
 
-        void ensure_type_is(Type type) const {
+        PageRep(PageID id, PageType type);
+
+        void ensure_type_is(PageType type) const {
             if (_type != type) throw std::logic_error("invalid type");
         }
 
@@ -159,6 +163,24 @@ namespace diamond {
         }
     };
 
+    class Page {
+    public:
+        static Page from_storage(PageID id, Storage& storage);
+
+        Page(PageID id, PageType type);
+        Page(const Page& page);
+        ~Page();
+
+        PageRep* operator->() const;
+
+        operator bool() const;
+
+    private:
+        PageRep* _rep;
+
+        Page(PageRep* rep);
+    };
+
 } // namespace diamond
 
-#endif // _DIAMOND_STORAGE_PAGE_H
+#endif // _DIAMOND_STORAGE_PageRep_H
