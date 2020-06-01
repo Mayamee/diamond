@@ -20,12 +20,13 @@
 namespace diamond {
 
     Timer::Timer(
+        ThreadPool& thread_pool,
         ThreadPool::Task task,
         const boost::posix_time::time_duration& delay)
         : _task(task),
         _delay(delay),
         _enabled(false),
-        _timer(ThreadPool::instance().service()) {}
+        _timer(thread_pool.service()) {}
 
     void Timer::start() {
         _enabled.store(true, std::memory_order::memory_order_release);
@@ -33,7 +34,8 @@ namespace diamond {
         _timer.async_wait(
             std::bind(
                 &Timer::tick,
-                this
+                this,
+                std::placeholders::_1
             ));
     }
 
@@ -42,7 +44,8 @@ namespace diamond {
         _timer.cancel();
     }
 
-    void Timer::tick() {
+    void Timer::tick(const boost::system::error_code& error) {
+        if (error) return;
         if (!_enabled.load(std::memory_order::memory_order_acquire)) return;
         try {
             _task();
@@ -52,7 +55,8 @@ namespace diamond {
             _timer.async_wait(
                 std::bind(
                     &Timer::tick,
-                    this
+                    this,
+                    std::placeholders::_1
                 ));
         }
     }

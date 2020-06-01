@@ -23,21 +23,24 @@
 
 namespace diamond {
 
+    enum class ErrorCode {
+        CORRUPTED_FILE,
+        PAGE_DOES_NOT_EXIST,
+        NO_PAGE_SPACE_AVAILABLE
+    };
+
     class Exception : public std::exception {
     public:
-        enum class Reason {
-            CORRUPTED_FILE,
-            NO_SUCH_PAGE
-        };
+        Exception(ErrorCode code);
 
-        Exception(Reason reason);
-
-        Reason reason() const;
+        ErrorCode code() const;
+        virtual const char* what() const noexcept override;
 
     private:
-        std::string get_msg_for_reason(Reason reason);
+        std::string get_msg_for_code(ErrorCode code);
 
-        Reason _reason;
+        ErrorCode _code;
+        std::string _msg;
     };
 
 } // namespace diamond

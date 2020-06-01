@@ -22,14 +22,19 @@
 
 namespace diamond {
 
-    BgPageWriter::BgPageWriter(Storage& storage, uint32_t delay)
+    BgPageWriter::BgPageWriter(
+        Storage& storage,
+        ThreadPool& thread_pool,
+        uint32_t delay)
         : PageWriter(storage),
         _timer_running(false),
         _timer(
+            thread_pool,
             std::bind(&BgPageWriter::bg_task, this),
             boost::posix_time::milliseconds(delay)) {}
 
     BgPageWriter::~BgPageWriter() {
+        _timer.stop();
         while (_queue.size()) {
             PendingWrite& pending_write = _queue.front();
             pending_write.buffer.write_to_storage(
@@ -74,11 +79,16 @@ namespace diamond {
         : buffer(std::move(_buffer)), 
         pos(_pos) {}
 
-    BgPageWriterFactory::BgPageWriterFactory(uint32_t delay)
-        : _delay(delay) {}
+    BgPageWriterFactory::BgPageWriterFactory(
+        Storage& storage,
+        ThreadPool& thread_pool,
+        uint32_t delay)
+        : PageWriterFactory(storage),
+        _thread_pool(thread_pool),
+        _delay(delay) {}
 
-    std::shared_ptr<PageWriter> BgPageWriterFactory::create(Storage& storage) const {
-        return std::make_shared<BgPageWriter>(storage, _delay);
+    std::shared_ptr<PageWriter> BgPageWriterFactory::create() const {
+        return std::make_shared<BgPageWriter>(_storage, _thread_pool, _delay);
     }
 
 } // namespace diamond

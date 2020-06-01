@@ -31,7 +31,10 @@ namespace {
 
     class MockPageWriterFactory : public diamond::PageWriterFactory {
     public:
-        MOCK_METHOD(std::shared_ptr<diamond::PageWriter>, create, (diamond::Storage& storage), (const override));
+        MockPageWriterFactory(diamond::Storage& storage)
+            : diamond::PageWriterFactory(storage) {}
+
+        MOCK_METHOD(std::shared_ptr<diamond::PageWriter>, create, (), (const override));
     };
 
 } // namespace

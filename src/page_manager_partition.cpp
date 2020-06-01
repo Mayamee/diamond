@@ -67,7 +67,7 @@ namespace diamond {
                 access_mode);
         }
 
-        throw Exception(Exception::Reason::NO_SUCH_PAGE);
+        throw Exception(ErrorCode::PAGE_DOES_NOT_EXIST);
     }
 
     void PageManagerPartition::write_page(const Page& page) {
@@ -87,6 +87,9 @@ namespace diamond {
     void PageManagerPartition::add_page(const Page& page) {
         if (_pages.size() == _max_num_pages) {
             PageID to_evict = _eviction_strategy->evict();
+            if (to_evict == INVALID_PAGE) {
+                throw Exception(ErrorCode::NO_PAGE_SPACE_AVAILABLE);
+            }
             _pages.erase(to_evict);
         }
 

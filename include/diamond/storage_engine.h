@@ -35,6 +35,8 @@ namespace diamond {
     private:
         PageManager& _manager;
         PageCompare _compare_func;
+
+        PageID get_leaf_page_id(const Buffer& key);
     };
 
 }

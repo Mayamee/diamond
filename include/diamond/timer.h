@@ -29,6 +29,7 @@ namespace diamond {
     class Timer : boost::noncopyable {
     public:
         Timer(
+            ThreadPool& thread_pool,
             ThreadPool::Task task,
             const boost::posix_time::time_duration& delay);
 
@@ -41,7 +42,7 @@ namespace diamond {
         std::atomic_bool _enabled;
         boost::asio::deadline_timer _timer;
 
-        void tick();
+        void tick(const boost::system::error_code& error);
     };
 
 } // namespace diamond

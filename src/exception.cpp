@@ -19,15 +19,27 @@
 
 namespace diamond {
 
-    Exception::Exception(Reason reason)
-        : _reason(reason) {}
+    Exception::Exception(ErrorCode code)
+        : _code(code),
+        _msg(get_msg_for_code(code)) {}
 
-    Exception::Reason Exception::reason() const {
-        return _reason;
+    ErrorCode Exception::code() const {
+        return _code;
     }
 
-    std::string Exception::get_msg_for_reason(Reason reason) {
-        return "";
+    const char* Exception::what() const noexcept {
+        return _msg.c_str();
+    }
+
+    std::string Exception::get_msg_for_code(ErrorCode code) {
+        switch (code) {
+        case ErrorCode::CORRUPTED_FILE:
+            return "database file is corrupted.";
+        case ErrorCode::PAGE_DOES_NOT_EXIST:
+            return "the requested page does not exist.";
+        case ErrorCode::NO_PAGE_SPACE_AVAILABLE:
+            return "max page capacity has been reached and there are no unused pages available to evict";
+        }
     }
 
 } // namespace diamond

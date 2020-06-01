@@ -32,7 +32,7 @@ namespace diamond {
             _partitions.push_back(
                 std::make_unique<PageManagerPartition>(
                     storage,
-                    page_writer_factory.create(storage),
+                    page_writer_factory.create(),
                     eviction_strategy_factory.create(),
                     max_num_pages_in_partition
                 ));

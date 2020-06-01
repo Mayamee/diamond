@@ -32,7 +32,10 @@ namespace diamond {
     public:
         static const uint32_t DEFAULT_DELAY = 200;
 
-        BgPageWriter(Storage& storage, uint32_t delay = DEFAULT_DELAY);
+        BgPageWriter(
+            Storage& storage,
+            ThreadPool& thread_pool,
+            uint32_t delay = DEFAULT_DELAY);
         virtual ~BgPageWriter();
 
         virtual void write(const Page& page) override;
@@ -55,11 +58,15 @@ namespace diamond {
 
     class BgPageWriterFactory : public PageWriterFactory {
     public:
-        BgPageWriterFactory(uint32_t delay = BgPageWriter::DEFAULT_DELAY);
+        BgPageWriterFactory(
+            Storage& storage,
+            ThreadPool& thread_pool,
+            uint32_t delay = BgPageWriter::DEFAULT_DELAY);
 
-        virtual std::shared_ptr<PageWriter> create(Storage& storage) const override;
+        virtual std::shared_ptr<PageWriter> create() const override;
 
     private:
+        ThreadPool& _thread_pool;
         uint32_t _delay;
     };
 

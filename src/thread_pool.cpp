@@ -19,17 +19,16 @@
 
 namespace diamond {
 
-    ThreadPool::~ThreadPool() {
-        _service.stop();
-        _thread_group.join_all();
-    }
-
-    ThreadPool::ThreadPool()
+    ThreadPool::ThreadPool(size_t threads)
         : _work(_service) {
-        size_t threads = boost::thread::hardware_concurrency();
         for (size_t i = 0; i < threads; i++) {
             _thread_group.create_thread([&]() { _service.run(); });
         }
+    }
+
+    ThreadPool::~ThreadPool() {
+        _service.stop();
+        _thread_group.join_all();
     }
 
     void ThreadPool::queue(Task task) {

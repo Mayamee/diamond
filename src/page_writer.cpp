@@ -22,4 +22,7 @@ namespace diamond {
     PageWriter::PageWriter(Storage& storage)
         : _storage(storage) {}
 
+    PageWriterFactory::PageWriterFactory(Storage& storage)
+        : _storage(storage) {}
+
 } // namespace diamond

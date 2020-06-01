@@ -31,7 +31,9 @@ namespace diamond {
 
     class SyncPageWriterFactory : public PageWriterFactory {
     public:
-        std::shared_ptr<PageWriter> create(Storage& storage) const override;
+        SyncPageWriterFactory(Storage& storage);
+
+        std::shared_ptr<PageWriter> create() const override;
     };
 
 } // namespace diamond

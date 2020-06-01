@@ -29,11 +29,7 @@ namespace diamond {
     public:
         using Task = std::function<void()>;
 
-        static ThreadPool& instance() {
-            static ThreadPool pool;
-            return pool;
-        }
-
+        ThreadPool(size_t threads = boost::thread::hardware_concurrency());
         ~ThreadPool();
 
         void queue(Task task);
@@ -44,8 +40,6 @@ namespace diamond {
         boost::thread_group _thread_group;
         boost::asio::io_service _service;
         boost::asio::io_service::work _work;
-
-        ThreadPool();
     };
 
 } // namespace diamond

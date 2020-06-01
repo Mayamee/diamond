@@ -36,7 +36,12 @@ namespace diamond {
 
     class PageWriterFactory {
     public:
-        virtual std::shared_ptr<PageWriter> create(Storage& storage) const = 0;
+        PageWriterFactory(Storage& storage);
+
+        virtual std::shared_ptr<PageWriter> create() const = 0;
+
+    protected:
+        Storage& _storage;
     };
 
 } // namespace diamond

@@ -26,8 +26,11 @@ namespace diamond {
         page->write_to_storage(_storage);
     }
 
-    std::shared_ptr<PageWriter> SyncPageWriterFactory::create(Storage& storage) const {
-        return std::make_shared<SyncPageWriter>(storage);
+    SyncPageWriterFactory::SyncPageWriterFactory(Storage& storage)
+        : PageWriterFactory(storage) {}
+
+    std::shared_ptr<PageWriter> SyncPageWriterFactory::create() const {
+        return std::make_shared<SyncPageWriter>(_storage);
     }
 
 } // namespace diamond
