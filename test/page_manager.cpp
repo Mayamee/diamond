@@ -29,9 +29,9 @@ namespace {
 
     TEST(page_manager_tests, ensure_page_is_managed_after_creation) {
         MockStorage mock_storage;
-        MockPageWriterFactory mock_page_writer_factory(mock_storage);
+        MockPageWriterFactory mock_page_writer_factory;
         std::shared_ptr<MockPageWriter> mock_page_writer =
-            std::make_shared<MockPageWriter>(mock_storage);
+            std::make_shared<MockPageWriter>();
         EXPECT_CALL(mock_page_writer_factory, create)
             .WillRepeatedly(::testing::Return(mock_page_writer));
 
@@ -57,9 +57,9 @@ namespace {
         diamond::Page page(id, diamond::PageType::LEAF_NODE);
         page->write_to_storage(storage);
 
-        MockPageWriterFactory mock_page_writer_factory(storage);
+        MockPageWriterFactory mock_page_writer_factory;
         std::shared_ptr<MockPageWriter> mock_page_writer =
-            std::make_shared<MockPageWriter>(storage);
+            std::make_shared<MockPageWriter>();
         EXPECT_CALL(mock_page_writer_factory, create)
             .WillRepeatedly(::testing::Return(mock_page_writer));
 
@@ -82,9 +82,9 @@ namespace {
 
     TEST(page_manager_tests, throws_when_page_does_not_exist) {
         MockStorage mock_storage;
-        MockPageWriterFactory mock_page_writer_factory(mock_storage);
+        MockPageWriterFactory mock_page_writer_factory;
         std::shared_ptr<MockPageWriter> mock_page_writer =
-            std::make_shared<MockPageWriter>(mock_storage);
+            std::make_shared<MockPageWriter>();
         EXPECT_CALL(mock_page_writer_factory, create)
             .WillRepeatedly(::testing::Return(mock_page_writer));
 

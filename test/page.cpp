@@ -23,12 +23,11 @@
 namespace {
 
     TEST(page_tests, write_and_read_data_page) {
-        using TestInput = std::tuple<diamond::Buffer, diamond::PageID, size_t>;
-        std::vector<TestInput> data_entries = {
-            { diamond::Buffer("wowowwowowoww"), 0, 0 },
-            { diamond::Buffer("it is indeed a buffer"), 0, 0 },
-            { diamond::Buffer("this is a buffer"), 0, 0 },
-            { diamond::Buffer("hello world"), 0, 0 }
+        std::vector<diamond::Buffer> data_entries = {
+            diamond::Buffer("wowowwowowoww"),
+            diamond::Buffer("it is indeed a buffer"),
+            diamond::Buffer("this is a buffer"),
+            diamond::Buffer("hello world")
         };
 
         diamond::MemoryStorage storage;
@@ -36,11 +35,7 @@ namespace {
         diamond::Page page1(1, diamond::PageType::DATA);
 
         for (size_t i = 0; i < data_entries.size(); i++) {
-            const TestInput& data_entry = data_entries.at(i);
-            page1->insert_data_entry(
-                std::get<0>(data_entry),
-                std::get<1>(data_entry),
-                std::get<2>(data_entry));
+            page1->insert_data_entry(data_entries.at(i));
         }
 
         page1->write_to_storage(storage);
@@ -48,14 +43,10 @@ namespace {
         diamond::Page page2 = diamond::Page::from_storage(1, storage);
 
         ASSERT_EQ(page2->get_type(), diamond::PageType::DATA);
+        EXPECT_EQ(page2->get_next_data_page(), diamond::INVALID_PAGE);
         ASSERT_EQ(page2->get_num_data_entries(), data_entries.size());
         for (size_t i = 0; i < page1->get_num_data_entries(); i++) {
-            const TestInput& data_entry = data_entries.at(i);
-            const diamond::DataEntry& entry = page2->get_data_entry(i);
-
-            EXPECT_EQ(entry.data(), std::get<0>(data_entry));
-            EXPECT_EQ(entry.overflow_id(), std::get<1>(data_entry));
-            EXPECT_EQ(entry.overflow_index(), std::get<2>(data_entry));
+            EXPECT_EQ(page2->get_data_entry(i).data(), data_entries.at(i));
         }
     }
 
@@ -120,6 +111,7 @@ namespace {
         diamond::Page page2 = diamond::Page::from_storage(1, storage);
 
         ASSERT_EQ(page2->get_type(), diamond::PageType::LEAF_NODE);
+        EXPECT_EQ(page2->get_next_leaf_node_page(), diamond::INVALID_PAGE);
         ASSERT_EQ(page2->get_num_leaf_node_entries(), leaf_nodes.size());
         for (size_t i = 0; i < leaf_nodes.size(); i++) {
             const TestInput& leaf_node = leaf_nodes.at(i);
@@ -134,7 +126,7 @@ namespace {
     TEST(page_tests, throws_when_data_page_does_not_have_enough_space) {
         diamond::Page page(1, diamond::PageType::DATA);
         diamond::Buffer buffer(page->get_remaining_space() + 1);
-        EXPECT_THROW(page->insert_data_entry(buffer, 0, 0), std::logic_error);
+        EXPECT_THROW(page->insert_data_entry(buffer), std::logic_error);
     }
 
     TEST(page_tests, throws_when_internal_node_page_does_not_have_enough_space) {

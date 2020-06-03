@@ -18,77 +18,79 @@
 #include <algorithm>
 
 #include "diamond/bg_page_writer.h"
-#include "diamond/thread_pool.h"
 
 namespace diamond {
 
-    BgPageWriter::BgPageWriter(
-        Storage& storage,
-        ThreadPool& thread_pool,
-        uint32_t delay)
-        : PageWriter(storage),
-        _timer_running(false),
-        _timer(
-            thread_pool,
-            std::bind(&BgPageWriter::bg_task, this),
-            boost::posix_time::milliseconds(delay)) {}
-
-    BgPageWriter::~BgPageWriter() {
-        _timer.stop();
-        while (_queue.size()) {
-            PendingWrite& pending_write = _queue.front();
-            pending_write.buffer.write_to_storage(
-                _storage,
-                pending_write.pos);
-            _queue.pop();
-        }
-    }
+    BgPageWriter::BgPageWriter(BgPageWriterQueue& queue)
+        : _queue(queue) {}
 
     void BgPageWriter::write(const Page& page) {
+        _queue.enqueue_write(page);
+    }
+
+    BgPageWriterQueue::BgPageWriterQueue(Storage& storage)
+        : _storage(storage),
+        _stop(false),
+        _thread(std::bind(&BgPageWriterQueue::bg_task, this)),
+        _current_batch(_batches.end()) {}
+
+    BgPageWriterQueue::~BgPageWriterQueue() {
+        _stop = true;
+        _thread.join();
+        for (const Batch& batch : _batches) {
+            for (const auto& [_, batch_item] : batch) {
+                batch_item.buffer.write_to_storage(
+                    _storage,
+                    batch_item.pos);
+            }
+        }
+    }
+
+    void BgPageWriterQueue::enqueue_write(const Page& page) {
         Buffer buffer(PAGE_SIZE);
         page->write_to_buffer(buffer);
-        {
-            boost::lock_guard<boost::mutex> lock(_mutex);
-            _queue.emplace(std::move(buffer), page->file_pos());
-            if (!_timer_running) {
-                _timer.start();
-                _timer_running = true;
+        boost::unique_lock<boost::mutex> lock(_mutex);
+        if (_current_batch == _batches.end()) {
+            _current_batch = _batches.emplace(_batches.begin());
+        }
+        (*_current_batch).insert_or_assign(
+            page->get_id(),
+            std::move(BatchItem(std::move(buffer), page->file_pos())));
+        if ((*_current_batch).size() >= BATCH_SIZE) {
+            _current_batch++;
+        }
+    }
+
+    void BgPageWriterQueue::bg_task() {
+        while (!_stop) {
+            boost::this_thread::sleep_for(
+                boost::chrono::milliseconds(DELAY));
+            if (_stop) break;
+            Batch batch;
+            {
+                boost::unique_lock<boost::mutex> lock(_mutex);
+                if (_current_batch == _batches.end()) continue;
+                if ((*_current_batch).size() == 0) continue;
+                batch = std::move(*_current_batch);
+                _current_batch = _batches.erase(_current_batch);
+            }
+            for (const auto &[_, batch_item] : batch) {
+                batch_item.buffer.write_to_storage(
+                    _storage,
+                    batch_item.pos);
             }
         }
     }
 
-    void BgPageWriter::bg_task() {
-        Buffer buffer;
-        uint64_t pos;
-        {
-            boost::lock_guard<boost::mutex> lock(_mutex);
-            PendingWrite& pending_write = _queue.front();
-            buffer = std::move(pending_write.buffer);
-            pos = pending_write.pos;
-            _queue.pop();
-            if (_queue.size() == 0) {
-                _timer.stop();
-                _timer_running = false;
-            }
-        }
-
-        buffer.write_to_storage(_storage, pos);
-    }
-
-    BgPageWriter::PendingWrite::PendingWrite(Buffer _buffer, uint64_t _pos)
+    BgPageWriterQueue::BatchItem::BatchItem(Buffer _buffer, uint64_t _pos)
         : buffer(std::move(_buffer)), 
         pos(_pos) {}
 
-    BgPageWriterFactory::BgPageWriterFactory(
-        Storage& storage,
-        ThreadPool& thread_pool,
-        uint32_t delay)
-        : PageWriterFactory(storage),
-        _thread_pool(thread_pool),
-        _delay(delay) {}
+    BgPageWriterFactory::BgPageWriterFactory(BgPageWriterQueue& queue)
+        : _queue(queue) {}
 
     std::shared_ptr<PageWriter> BgPageWriterFactory::create() const {
-        return std::make_shared<BgPageWriter>(_storage, _thread_pool, _delay);
+        return std::make_shared<BgPageWriter>(_queue);
     }
 
 } // namespace diamond

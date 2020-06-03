@@ -19,24 +19,20 @@
 #include "diamond/lru_eviction_strategy.h"
 #include "diamond/file_storage.h"
 #include "diamond/storage_engine.h"
-#include "diamond/thread_pool.h"
-
-static const uint32_t bg_writer_delay = 500;
 
 int main() {
 
-    diamond::ThreadPool thread_pool;
     diamond::FileStorage storage("data");
-    diamond::BgPageWriterFactory page_writer_factory(
-        storage,
-        thread_pool,
-        bg_writer_delay);
+    diamond::BgPageWriterQueue page_writer_queue(storage);
+    diamond::BgPageWriterFactory page_writer_factory(page_writer_queue);
     diamond::LRUEvictionStrategyFactory eviction_strategy_factory;
     diamond::PageManager manager(
         storage,
         page_writer_factory,
         eviction_strategy_factory);
     diamond::StorageEngine engine(manager);
+    boost::this_thread::sleep_for(
+                boost::chrono::milliseconds(1000));
 
     return 0;
 }

@@ -26,22 +26,12 @@ namespace diamond {
 
     class PageWriter {
     public:
-        PageWriter(Storage& storage);
-
         virtual void write(const Page& page) = 0;
-
-    protected:
-        Storage& _storage;
     };
 
     class PageWriterFactory {
     public:
-        PageWriterFactory(Storage& storage);
-
         virtual std::shared_ptr<PageWriter> create() const = 0;
-
-    protected:
-        Storage& _storage;
     };
 
 } // namespace diamond

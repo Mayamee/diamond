@@ -28,7 +28,8 @@ namespace diamond {
 
     enum class PageAccessorMode {
         EXCLUSIVE,
-        SHARED
+        SHARED,
+        UPGRADE
     };
 
     class PageAccessor {
@@ -43,12 +44,16 @@ namespace diamond {
         void lock_shared();
         void unlock_shared();
 
+        void lock_upgrade();
+        void unlock_upgrade();
+        void upgrade_lock();
+
         bool locked() const;
-        bool shared() const;
+        PageAccessorMode mode() const;
 
     private:
         bool _locked;
-        bool _shared;
+        PageAccessorMode _mode;
         Page _page;
         std::shared_ptr<boost::shared_mutex> _mutex;
 

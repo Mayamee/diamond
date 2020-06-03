@@ -18,56 +18,69 @@
 #ifndef _DIAMOND_BG_PAGE_WRITER_H
 #define _DIAMOND_BG_PAGE_WRITER_H
 
-#include <queue>
+#include <atomic>
+#include <list>
+#include <unordered_map>
 
 #include <boost/thread.hpp>
-#include <boost/utility.hpp>
 
 #include "diamond/page_writer.h"
-#include "diamond/timer.h"
 
 namespace diamond {
 
+    class BgPageWriterQueue;
+
     class BgPageWriter : public PageWriter, boost::noncopyable  {
     public:
-        static const uint32_t DEFAULT_DELAY = 200;
-
-        BgPageWriter(
-            Storage& storage,
-            ThreadPool& thread_pool,
-            uint32_t delay = DEFAULT_DELAY);
-        virtual ~BgPageWriter();
+        BgPageWriter(BgPageWriterQueue& queue);
 
         virtual void write(const Page& page) override;
 
     private:
-        bool _timer_running;
-        Timer _timer;
+        BgPageWriterQueue& _queue;
+    };
+
+    class BgPageWriterQueue final : boost::noncopyable {
+    public:
+        static const uint64_t DELAY = 500;
+        static const size_t BATCH_SIZE = 100;
+
+        BgPageWriterQueue(Storage& storage);
+        ~BgPageWriterQueue();
+
+        void enqueue_write(const Page& page);
+
+    private:
+        Storage& _storage;
+
+        std::atomic_bool _stop;
+
+        boost::thread _thread;
         boost::mutex _mutex;
 
-        struct PendingWrite {
-            PendingWrite(Buffer _buffer, uint64_t _pos);
+        struct BatchItem {
+            BatchItem(Buffer _buffer, uint64_t _pos);
 
             Buffer buffer;
             uint64_t pos;
         };
-        std::queue<PendingWrite> _queue;
+
+        using Batch = std::unordered_map<PageID, BatchItem>;
+
+        std::list<Batch> _batches;
+        std::list<Batch>::iterator _current_batch;
 
         void bg_task();
     };
 
     class BgPageWriterFactory : public PageWriterFactory {
     public:
-        BgPageWriterFactory(
-            Storage& storage,
-            ThreadPool& thread_pool,
-            uint32_t delay = BgPageWriter::DEFAULT_DELAY);
+        BgPageWriterFactory(BgPageWriterQueue& queue);
 
         virtual std::shared_ptr<PageWriter> create() const override;
 
     private:
-        ThreadPool& _thread_pool;
-        uint32_t _delay;
+        BgPageWriterQueue& _queue;
     };
 
 } // namespace diamond

@@ -25,6 +25,7 @@ namespace diamond {
             _compare_func(compare_func) {
         if (_manager.storage().size() == 0) {
             _manager.create_page(PageType::LEAF_NODE);
+            _manager.create_page(PageType::FREE_LIST);
         }
     }
 
@@ -45,7 +46,7 @@ namespace diamond {
 
     void StorageEngine::insert(const Buffer& key, const Buffer& val) {
         PageID page_id = get_leaf_page_id(key);
-        PageAccessor accessor = _manager.get_page_accessor(page_id, PageAccessorMode::SHARED);
+        PageAccessor accessor = _manager.get_page_accessor(page_id, PageAccessorMode::UPGRADE);
         const Page& page = accessor.page();
         if (page->can_insert_leaf_node_entry(key)) {
             // insert new data entry

@@ -66,6 +66,18 @@ namespace diamond {
         return _overflow_index;
     }
 
+    FreeListEntry::FreeListEntry(PageID data_id, uint16_t free_space)
+        : _data_id(data_id),
+        _free_space(free_space) {}
+
+    PageID FreeListEntry::data_id() const {
+        return _data_id;
+    }
+
+    uint16_t FreeListEntry::free_space() const {
+        return _free_space;
+    }
+
     InternalNodeEntry::InternalNodeEntry(Buffer key, PageID next_node_id)
         : _key(std::move(key)),
         _next_node_id(next_node_id) {
@@ -110,7 +122,10 @@ namespace diamond {
     PageRep::~PageRep() {
         switch (_type) {
         case PageType::DATA:
-            delete _data_entries;
+            delete _data.entries;
+            break;
+        case PageType::FREE_LIST:
+            delete _free_list.entries;
             break;
         case PageType::INTERNAL_NODE:
             delete _internal_node_entries;
@@ -137,11 +152,13 @@ namespace diamond {
         return PAGE_SIZE - _size;
     }
 
-    size_t PageRep::header_size() const {
-        size_t size = sizeof(PageType);
+    uint16_t PageRep::header_size() const {
+        uint16_t size = sizeof(PageType);
         switch (_type) {
         case PageType::DATA:
             return size + sizeof(size_t);
+        case PageType::FREE_LIST:
+            return size + sizeof(PageID) + sizeof(size_t);
         case PageType::INTERNAL_NODE:
             return size + sizeof(size_t);
         case PageType::LEAF_NODE:
@@ -157,29 +174,86 @@ namespace diamond {
         return _use_count.load(std::memory_order::memory_order_acquire);
     }
 
+    PageID PageRep::get_next_data_page() const {
+        ensure_type_is(PageType::DATA);
+        return _data.next;
+    }
+
     size_t PageRep::get_num_data_entries() const {
         ensure_type_is(PageType::DATA);
-        return _data_entries->size();
+        return _data.entries->size();
     }
 
     const std::vector<DataEntry>* PageRep::get_data_entries() const {
         ensure_type_is(PageType::DATA);
-        return _data_entries;
+        return _data.entries;
     }
 
     const DataEntry& PageRep::get_data_entry(size_t i) const {
         ensure_type_is(PageType::DATA);
-        return _data_entries->at(i);
+        return _data.entries->at(i);
     }
 
-    void PageRep::insert_data_entry(const Buffer& data, PageID overflow_id, size_t overflow_index) {
+    size_t PageRep::insert_data_entry(const Buffer& data) {
         ensure_type_is(PageType::DATA);
-        size_t space = data.size();
-        if (overflow_id > 0) space += sizeof(overflow_id) + sizeof(overflow_index);
+        // TODO: Handle overflows
+        uint16_t space = data_entry_space_req(data);
         ensure_space_available(space);
 
-        _data_entries->emplace_back(data, overflow_id, overflow_index);
+        size_t i = _data.entries->size();
+        _data.entries->emplace_back(data);
         _size += space;
+        return i;
+    }
+
+    bool PageRep::can_insert_data_entry(const Buffer& data) {
+        ensure_type_is(PageType::DATA);
+        // TODO: Handle overflows
+        return get_remaining_space() >= data_entry_space_req(data);
+    }
+
+    PageID PageRep::get_next_free_list_page() const {
+        ensure_type_is(PageType::FREE_LIST);
+        return _free_list.next;
+    }
+
+    size_t PageRep::get_num_free_list_entries() const {
+        ensure_type_is(PageType::FREE_LIST);
+        return _free_list.entries->size();
+    }
+
+    const std::vector<FreeListEntry>* PageRep::get_free_list_entries() const {
+        ensure_type_is(PageType::FREE_LIST);
+        return _free_list.entries;
+    }
+
+    const FreeListEntry& PageRep::get_free_list_entry(size_t i) const {
+        ensure_type_is(PageType::FREE_LIST);
+        return _free_list.entries->at(i);
+    }
+
+    bool PageRep::reserve_free_list_entry(const Buffer& data, PageID& data_id) {
+        ensure_type_is(PageType::FREE_LIST);
+        uint16_t space_req = data_entry_space_req(data);
+        size_t n = _free_list.entries->size();
+        for (size_t i = 0; i < n; i++) {
+            if (_free_list.entries->at(i).free_space() >= space_req) {
+                data_id = _free_list.entries->at(i).data_id();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    size_t PageRep::insert_free_list_entry(PageID data_id, uint16_t free_space) {
+        ensure_type_is(PageType::FREE_LIST);
+        uint16_t space = free_list_entry_space_req();
+        ensure_space_available(space);
+
+        size_t i = _free_list.entries->size();
+        _free_list.entries->emplace_back(data_id, free_space);
+        _size += space;
+        return i;
     }
 
     size_t PageRep::get_num_internal_node_entries() const {
@@ -208,19 +282,25 @@ namespace diamond {
         return n - 1;
     }
 
-    void PageRep::insert_internal_node_entry(const Buffer& key, PageID next_node_id) {
+    size_t PageRep::insert_internal_node_entry(const Buffer& key, PageID next_node_id) {
         ensure_type_is(PageType::INTERNAL_NODE);
-        size_t space = key.size() + sizeof(PageID);
+        uint16_t space = internal_node_entry_space_req(key);
         ensure_space_available(space);
 
+        size_t i = _internal_node_entries->size();
         _internal_node_entries->emplace_back(key, next_node_id);
         _size += space;
+        return i;
     }
 
     bool PageRep::can_insert_internal_node_entry(const Buffer& key) const {
         ensure_type_is(PageType::INTERNAL_NODE);
-        size_t space = key.size() + sizeof(PageID);
-        return get_remaining_space() >= space;
+        return get_remaining_space() >= internal_node_entry_space_req(key);
+    }
+
+    PageID PageRep::get_next_leaf_node_page() const {
+        ensure_type_is(PageType::LEAF_NODE);
+        return _leaf.next;
     }
 
     size_t PageRep::get_num_leaf_node_entries() const {
@@ -250,19 +330,20 @@ namespace diamond {
         return false;
     }
 
-    void PageRep::insert_leaf_node_entry(const Buffer& key, PageID data_id, size_t data_index) {
+    size_t PageRep::insert_leaf_node_entry(const Buffer& key, PageID data_id, size_t data_index) {
         ensure_type_is(PageType::LEAF_NODE);
-        size_t space = key.size() + sizeof(PageID) + sizeof(size_t);
+        uint16_t space = leaf_node_entry_space_req(key);
         ensure_space_available(space);
 
+        size_t i = _leaf.entries->size();
         _leaf.entries->emplace_back(key, data_id, data_index);
         _size += space;
+        return i;
     }
 
     bool PageRep::can_insert_leaf_node_entry(const Buffer& key) const {
         ensure_type_is(PageType::LEAF_NODE);
-        size_t space = key.size() + sizeof(PageID) + sizeof(size_t);
-        return get_remaining_space() >= space;
+        return get_remaining_space() >= leaf_node_entry_space_req(key);
     }
 
     void PageRep::write_to_storage(Storage& storage) const {
@@ -278,10 +359,11 @@ namespace diamond {
         buffer_writer.write<PageType>(_type);
         switch (_type) {
         case PageType::DATA: {
-            size_t num_entries = _data_entries->size();
+            buffer_writer.write<PageID>(_data.next);
+            size_t num_entries = _data.entries->size();
             buffer_writer.write<size_t>(num_entries);
             for (size_t i = 0; i < num_entries; i++) {
-                const DataEntry& entry = _data_entries->at(i);
+                const DataEntry& entry = _data.entries->at(i);
 
                 buffer_writer.write<size_t>(entry.data_size());
                 buffer_writer.write(entry.data());
@@ -290,6 +372,18 @@ namespace diamond {
                     buffer_writer.write<PageID>(entry.overflow_id());
                     buffer_writer.write<size_t>(entry.overflow_index());
                 }
+            }
+            break;
+        }
+        case PageType::FREE_LIST: {
+            buffer_writer.write<PageID>(_free_list.next);
+            size_t num_entries = _free_list.entries->size();
+            buffer_writer.write<size_t>(num_entries);
+            for (size_t i = 0; i < num_entries; i++) {
+                const FreeListEntry& entry = _free_list.entries->at(i);
+
+                buffer_writer.write<PageID>(entry.data_id());
+                buffer_writer.write<uint16_t>(entry.free_space());
             }
             break;
         }
@@ -335,8 +429,9 @@ namespace diamond {
         PageRep* page = new PageRep(id, buffer_reader.read<PageType>());
         switch (page->_type) {
         case PageType::DATA: {
+            page->_data.next = buffer_reader.read<PageID>();
             size_t num_entries = buffer_reader.read<size_t>();
-            page->_data_entries = new std::vector<DataEntry>();
+            page->_data.entries = new std::vector<DataEntry>();
             for (size_t i = 0; i < num_entries; i++) {
                 size_t data_size = buffer_reader.read<size_t>();
                 size_t rem = buffer_reader.bytes_remaining();
@@ -351,14 +446,25 @@ namespace diamond {
                     overflow_id = buffer_reader.read<PageID>();
                     overflow_index = buffer_reader.read<size_t>();
 
-                    page->_data_entries->emplace_back(std::move(data), overflow_id, overflow_index);
+                    page->_data.entries->emplace_back(std::move(data), overflow_id, overflow_index);
                     page->_size += to_read + sizeof(overflow_id) + sizeof(overflow_index);
                 } else {
                     Buffer data(data_size);
                     buffer_reader.read(data);
-                    page->_data_entries->emplace_back(std::move(data));
+                    page->_data.entries->emplace_back(std::move(data));
                     page->_size += data_size;
                 }
+            }
+            break;
+        }
+        case PageType::FREE_LIST: {
+            page->_free_list.next = buffer_reader.read<PageID>();
+            size_t num_entries = buffer_reader.read<size_t>();
+            page->_free_list.entries = new std::vector<FreeListEntry>();
+            for (size_t i = 0; i < num_entries; i++) {
+                page->_free_list.entries->emplace_back(
+                    buffer_reader.read<PageID>(),
+                    buffer_reader.read<uint16_t>());
             }
             break;
         }
@@ -406,7 +512,12 @@ namespace diamond {
             _use_count(1) {
         switch (type) {
         case PageType::DATA:
-            _data_entries = new std::vector<DataEntry>();
+            _data.next = 0;
+            _data.entries = new std::vector<DataEntry>();
+            break;
+        case PageType::FREE_LIST:
+            _free_list.next = 0;
+            _free_list.entries = new std::vector<FreeListEntry>();
             break;
         case PageType::INTERNAL_NODE:
             _internal_node_entries = new std::vector<InternalNodeEntry>();
