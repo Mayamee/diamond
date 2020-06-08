@@ -75,6 +75,8 @@ namespace diamond {
         PageID data_id() const;
         uint16_t free_space() const;
 
+        void set_free_space(uint16_t free_space);
+
     private:
         PageID _data_id;
         uint16_t _free_space;
@@ -125,7 +127,6 @@ namespace diamond {
 
         uint64_t usage_count() const;
 
-        PageID get_next_data_page() const;
         size_t get_num_data_entries() const;
         const std::vector<DataEntry>* get_data_entries() const;
         const DataEntry& get_data_entry(size_t i) const;
@@ -133,11 +134,13 @@ namespace diamond {
         bool can_insert_data_entry(const Buffer& data);
 
         PageID get_next_free_list_page() const;
+        void set_next_free_list_page(PageID next);
         size_t get_num_free_list_entries() const;
         const std::vector<FreeListEntry>* get_free_list_entries() const;
         const FreeListEntry& get_free_list_entry(size_t i) const;
         bool reserve_free_list_entry(const Buffer& data, PageID& data_id);
         size_t insert_free_list_entry(PageID data_id, uint16_t free_space);
+        bool can_insert_free_list_entry();
 
         size_t get_num_internal_node_entries() const;
         const std::vector<InternalNodeEntry>* get_internal_node_entries() const;
@@ -164,10 +167,7 @@ namespace diamond {
         PageType _type;
         uint16_t _size;
         union {
-            struct {
-                std::vector<DataEntry>* entries;
-                PageID next;
-            } _data;
+            std::vector<DataEntry>* _data_entries;
             struct {
                 std::vector<FreeListEntry>* entries;
                 PageID next;

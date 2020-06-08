@@ -47,6 +47,8 @@ namespace diamond {
 
         void write_to_storage(Storage& storage, uint64_t offset) const;
 
+        std::string to_str() const;
+
         char operator[](size_t i) const;
 
         Buffer& operator=(const Buffer& other);

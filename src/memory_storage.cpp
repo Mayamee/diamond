@@ -19,24 +19,36 @@
 
 namespace diamond {
 
+    MemoryStorage::MemoryStorage(size_t initial_size)
+        : _buffer(new char[initial_size]),
+        _pos(0),
+        _size(initial_size) {}
+
+    MemoryStorage::~MemoryStorage() {
+        delete[] _buffer;
+    }
+
     void MemoryStorage::write_impl(const char* buffer, size_t n) {
-        _ss.write(buffer, n);
+        if (_pos + n >= _size) {
+            _size *= 2;
+            char* new_buffer = new char[_size];
+            std::memcpy(new_buffer, _buffer, _size);
+            delete[] _buffer;
+            _buffer = new_buffer;
+        }
+        std::memcpy(_buffer, buffer, n);
     }
 
     void MemoryStorage::read_impl(char* buffer, size_t n) {
-        _ss.read(buffer, n);
+        std::memcpy(buffer, _buffer, n);
     }
 
     void MemoryStorage::seek_impl(size_t n) {
-        _ss.seekg(n);
+        _pos = n;
     }
 
     uint64_t MemoryStorage::size_impl() {
-        std::streampos pos = _ss.tellg();
-        _ss.seekg(0, std::ios::end);
-        std::streampos size = _ss.tellg() - pos;
-        _ss.seekg(pos);
-        return size;
+        return _size;
     }
 
 } // namespace diamond

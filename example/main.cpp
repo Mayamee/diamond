@@ -15,6 +15,8 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+#include <iostream>
+
 #include "diamond/bg_page_writer.h"
 #include "diamond/lru_eviction_strategy.h"
 #include "diamond/file_storage.h"
@@ -31,8 +33,10 @@ int main() {
         page_writer_factory,
         eviction_strategy_factory);
     diamond::StorageEngine engine(manager);
-    boost::this_thread::sleep_for(
-                boost::chrono::milliseconds(1000));
+    engine.insert(
+        diamond::Buffer("key"),
+        diamond::Buffer("value"));
+    std::cout << engine.get(diamond::Buffer("key")).to_str() << std::endl;
 
     return 0;
 }

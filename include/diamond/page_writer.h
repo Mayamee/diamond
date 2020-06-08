@@ -18,8 +18,6 @@
 #ifndef _DIAMOND_PAGE_WRITER_H
 #define _DIAMOND_PAGE_WRITER_H
 
-#include <iostream>
-
 #include "diamond/page.h"
 
 namespace diamond {

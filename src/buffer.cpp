@@ -90,6 +90,10 @@ namespace diamond {
         storage.write(_buffer, _size, offset);
     }
 
+    std::string Buffer::to_str() const {
+        return std::string(_buffer, _size);
+    }
+
     char Buffer::operator[](size_t i) const {
         return _buffer[i];
     }
@@ -110,7 +114,7 @@ namespace diamond {
         if (this != &other) {
             if (_owns_buffer && _buffer) delete[] _buffer;
             _size = other._size;
-            _buffer = new char[_size];
+            _buffer = other._buffer;
             _owns_buffer = other._owns_buffer;
             if (_owns_buffer) {
                 other._size = 0;

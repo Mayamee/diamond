@@ -14,13 +14,13 @@
 **  You should have received a copy of the GNU General Public License
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-#include <iostream>
+
 #include "diamond/page_accessor.h"
 
 namespace diamond {
 
     PageAccessor::~PageAccessor() {
-        if (!_locked) return;
+        if (!_mutex || !_locked) return;
         switch (_mode) {
         case PageAccessorMode::EXCLUSIVE:
             _mutex->unlock();

@@ -43,10 +43,44 @@ namespace {
         diamond::Page page2 = diamond::Page::from_storage(1, storage);
 
         ASSERT_EQ(page2->get_type(), diamond::PageType::DATA);
-        EXPECT_EQ(page2->get_next_data_page(), diamond::INVALID_PAGE);
         ASSERT_EQ(page2->get_num_data_entries(), data_entries.size());
         for (size_t i = 0; i < page1->get_num_data_entries(); i++) {
             EXPECT_EQ(page2->get_data_entry(i).data(), data_entries.at(i));
+        }
+    }
+
+    TEST(page_tests, write_and_read_free_list_page) {
+        using TestInput = std::tuple<diamond::PageID, uint16_t>;
+        std::vector<TestInput> free_list_entries = {
+            { 1, 100 },
+            { 2, 300 },
+            { 3, 588 },
+            { 4, 1024 }
+        };
+
+        diamond::MemoryStorage storage;
+
+        diamond::Page page1(1, diamond::PageType::FREE_LIST);
+
+        for (size_t i = 0; i < free_list_entries.size(); i++) {
+            const TestInput& free_list_entry = free_list_entries.at(i);
+            page1->insert_free_list_entry(
+                std::get<0>(free_list_entry),
+                std::get<1>(free_list_entry));
+        }
+
+        page1->write_to_storage(storage);
+
+        diamond::Page page2 = diamond::Page::from_storage(1, storage);
+
+        ASSERT_EQ(page2->get_type(), diamond::PageType::FREE_LIST);
+        ASSERT_EQ(page2->get_num_free_list_entries(), free_list_entries.size());
+        for (size_t i = 0; i < page1->get_num_free_list_entries(); i++) {
+            const TestInput& free_list_entry = free_list_entries.at(i);
+            const diamond::FreeListEntry& entry = page2->get_free_list_entry(i);
+
+            EXPECT_EQ(entry.data_id(), std::get<0>(free_list_entry));
+            EXPECT_EQ(entry.free_space(), std::get<1>(free_list_entry));
         }
     }
 

@@ -15,40 +15,37 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include <filesystem>
-
 #include "diamond/file_storage.h"
 
 namespace diamond {
 
     FileStorage::FileStorage(const std::string& file_name) {
-        if (std::filesystem::exists(file_name)) {
-            _fs.open(file_name);
-        } else {
-            // stupid way of making it create a file
-            _fs.open(file_name, std::ios::out);
-            _fs.close();
-            _fs.open(file_name);
+        if ((_file = fopen(file_name.c_str(), "r+")) == nullptr) {
+            _file = fopen(file_name.c_str(), "w+");
         }
     }
 
+    FileStorage::~FileStorage() {
+        fclose(_file);
+    }
+
     void FileStorage::write_impl(const char* buffer, size_t n) {
-        _fs.write(buffer, n);
+        fwrite(buffer, sizeof(char), n, _file);
     }
 
     void FileStorage::read_impl(char* buffer, size_t n) {
-        _fs.read(buffer, n);
+        fread(buffer, sizeof(char), n, _file);
     }
 
     void FileStorage::seek_impl(size_t n) {
-        _fs.seekg(n);
+        fseek(_file, n, SEEK_SET);
     }
 
     uint64_t FileStorage::size_impl() {
-        std::streampos pos = _fs.tellg();
-        _fs.seekg(0, std::ios::end);
-        std::streampos size = _fs.tellg() - pos;
-        _fs.seekg(pos);
+        uint64_t pos = ftell(_file);
+        fseek(_file, 0, SEEK_END);
+        uint64_t size = ftell(_file);
+        fseek(_file, pos, SEEK_SET);
         return size;
     }
 

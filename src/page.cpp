@@ -78,6 +78,10 @@ namespace diamond {
         return _free_space;
     }
 
+    void FreeListEntry::set_free_space(uint16_t free_space) {
+        _free_space = free_space;
+    }
+
     InternalNodeEntry::InternalNodeEntry(Buffer key, PageID next_node_id)
         : _key(std::move(key)),
         _next_node_id(next_node_id) {
@@ -122,7 +126,7 @@ namespace diamond {
     PageRep::~PageRep() {
         switch (_type) {
         case PageType::DATA:
-            delete _data.entries;
+            delete _data_entries;
             break;
         case PageType::FREE_LIST:
             delete _free_list.entries;
@@ -174,24 +178,19 @@ namespace diamond {
         return _use_count.load(std::memory_order::memory_order_acquire);
     }
 
-    PageID PageRep::get_next_data_page() const {
-        ensure_type_is(PageType::DATA);
-        return _data.next;
-    }
-
     size_t PageRep::get_num_data_entries() const {
         ensure_type_is(PageType::DATA);
-        return _data.entries->size();
+        return _data_entries->size();
     }
 
     const std::vector<DataEntry>* PageRep::get_data_entries() const {
         ensure_type_is(PageType::DATA);
-        return _data.entries;
+        return _data_entries;
     }
 
     const DataEntry& PageRep::get_data_entry(size_t i) const {
         ensure_type_is(PageType::DATA);
-        return _data.entries->at(i);
+        return _data_entries->at(i);
     }
 
     size_t PageRep::insert_data_entry(const Buffer& data) {
@@ -200,8 +199,8 @@ namespace diamond {
         uint16_t space = data_entry_space_req(data);
         ensure_space_available(space);
 
-        size_t i = _data.entries->size();
-        _data.entries->emplace_back(data);
+        size_t i = _data_entries->size();
+        _data_entries->emplace_back(data);
         _size += space;
         return i;
     }
@@ -215,6 +214,11 @@ namespace diamond {
     PageID PageRep::get_next_free_list_page() const {
         ensure_type_is(PageType::FREE_LIST);
         return _free_list.next;
+    }
+
+    void PageRep::set_next_free_list_page(PageID next) {
+        ensure_type_is(PageType::FREE_LIST);
+        _free_list.next = next;
     }
 
     size_t PageRep::get_num_free_list_entries() const {
@@ -237,7 +241,10 @@ namespace diamond {
         uint16_t space_req = data_entry_space_req(data);
         size_t n = _free_list.entries->size();
         for (size_t i = 0; i < n; i++) {
-            if (_free_list.entries->at(i).free_space() >= space_req) {
+            FreeListEntry& entry = _free_list.entries->at(i);
+            uint16_t free_space = entry.free_space();
+            if (free_space >= space_req) {
+                entry.set_free_space(free_space - space_req);
                 data_id = _free_list.entries->at(i).data_id();
                 return true;
             }
@@ -254,6 +261,11 @@ namespace diamond {
         _free_list.entries->emplace_back(data_id, free_space);
         _size += space;
         return i;
+    }
+
+    bool PageRep::can_insert_free_list_entry() {
+        ensure_type_is(PageType::FREE_LIST);
+        return get_remaining_space() >= free_list_entry_space_req();
     }
 
     size_t PageRep::get_num_internal_node_entries() const {
@@ -359,11 +371,10 @@ namespace diamond {
         buffer_writer.write<PageType>(_type);
         switch (_type) {
         case PageType::DATA: {
-            buffer_writer.write<PageID>(_data.next);
-            size_t num_entries = _data.entries->size();
+            size_t num_entries = _data_entries->size();
             buffer_writer.write<size_t>(num_entries);
             for (size_t i = 0; i < num_entries; i++) {
-                const DataEntry& entry = _data.entries->at(i);
+                const DataEntry& entry = _data_entries->at(i);
 
                 buffer_writer.write<size_t>(entry.data_size());
                 buffer_writer.write(entry.data());
@@ -429,9 +440,8 @@ namespace diamond {
         PageRep* page = new PageRep(id, buffer_reader.read<PageType>());
         switch (page->_type) {
         case PageType::DATA: {
-            page->_data.next = buffer_reader.read<PageID>();
             size_t num_entries = buffer_reader.read<size_t>();
-            page->_data.entries = new std::vector<DataEntry>();
+            page->_data_entries = new std::vector<DataEntry>();
             for (size_t i = 0; i < num_entries; i++) {
                 size_t data_size = buffer_reader.read<size_t>();
                 size_t rem = buffer_reader.bytes_remaining();
@@ -446,12 +456,12 @@ namespace diamond {
                     overflow_id = buffer_reader.read<PageID>();
                     overflow_index = buffer_reader.read<size_t>();
 
-                    page->_data.entries->emplace_back(std::move(data), overflow_id, overflow_index);
+                    page->_data_entries->emplace_back(std::move(data), overflow_id, overflow_index);
                     page->_size += to_read + sizeof(overflow_id) + sizeof(overflow_index);
                 } else {
                     Buffer data(data_size);
                     buffer_reader.read(data);
-                    page->_data.entries->emplace_back(std::move(data));
+                    page->_data_entries->emplace_back(std::move(data));
                     page->_size += data_size;
                 }
             }
@@ -462,9 +472,9 @@ namespace diamond {
             size_t num_entries = buffer_reader.read<size_t>();
             page->_free_list.entries = new std::vector<FreeListEntry>();
             for (size_t i = 0; i < num_entries; i++) {
-                page->_free_list.entries->emplace_back(
-                    buffer_reader.read<PageID>(),
-                    buffer_reader.read<uint16_t>());
+                PageID data_id = buffer_reader.read<PageID>(); 
+                uint16_t free_space = buffer_reader.read<uint16_t>();
+                page->_free_list.entries->emplace_back(data_id, free_space);
             }
             break;
         }
@@ -512,8 +522,7 @@ namespace diamond {
             _use_count(1) {
         switch (type) {
         case PageType::DATA:
-            _data.next = 0;
-            _data.entries = new std::vector<DataEntry>();
+            _data_entries = new std::vector<DataEntry>();
             break;
         case PageType::FREE_LIST:
             _free_list.next = 0;

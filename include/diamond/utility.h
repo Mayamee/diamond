@@ -15,32 +15,22 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _DIAMOND_FILE_STORAGE_H
-#define _DIAMOND_FILE_STORAGE_H
-
-#include <cstdio>
-#include <fstream>
-
-#include <boost/thread.hpp>
-
-#include "diamond/storage.h"
+#ifndef _DIAMOND_UTILITY_H
+#define _DIAMOND_UTILITY_H
 
 namespace diamond {
 
-    class FileStorage final : public Storage {
-    public:
-        FileStorage(const std::string& file_name);
-        ~FileStorage();
+    class noncopyable {
+    protected:
+        noncopyable() {}
+        noncopyable(noncopyable&&) {}
+        ~noncopyable() {}
 
     private:
-        FILE* _file;
-
-        void write_impl(const char* buffer, size_t n) override;
-        void read_impl(char* buffer, size_t n) override;
-        void seek_impl(size_t n) override;
-        uint64_t size_impl() override;
+        noncopyable( const noncopyable& );
+        const noncopyable& operator=( const noncopyable& );
     };
 
 } // namespace diamond
 
-#endif // _DIAMOND_FILE_STORAGE_H
+#endif // _DIAMOND_UTILITY_H

@@ -18,20 +18,20 @@
 #ifndef _DIAMOND_MEMORY_STORAGE_H
 #define _DIAMOND_MEMORY_STORAGE_H
 
-#include <sstream>
-
-#include <boost/thread.hpp>
-
+#include "diamond/page.h"
 #include "diamond/storage.h"
 
 namespace diamond {
 
     class MemoryStorage final : public Storage {
     public:
-        MemoryStorage() = default;
+        MemoryStorage(size_t initial_size = PAGE_SIZE);
+        ~MemoryStorage();
 
     private:
-        std::stringstream _ss;
+        char* _buffer;
+        size_t _pos;
+        size_t _size;
 
         void write_impl(const char* buffer, size_t n) override;
         void read_impl(char* buffer, size_t n) override;

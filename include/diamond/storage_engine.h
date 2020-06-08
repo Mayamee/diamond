@@ -37,6 +37,7 @@ namespace diamond {
         PageCompare _compare_func;
 
         PageID get_leaf_page_id(const Buffer& key);
+        PageAccessor get_free_data_page(const Buffer& val);
     };
 
 }

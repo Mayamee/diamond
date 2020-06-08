@@ -21,6 +21,7 @@
 #include <boost/thread.hpp>
 
 #include "diamond/page.h"
+#include "diamond/utility.h"
 
 namespace diamond {
 
@@ -32,8 +33,9 @@ namespace diamond {
         UPGRADE
     };
 
-    class PageAccessor {
+    class PageAccessor : noncopyable {
     public:
+        PageAccessor(PageAccessor&&) = default;
         ~PageAccessor();
 
         Page& page();
