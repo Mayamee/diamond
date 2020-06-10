@@ -34,7 +34,7 @@ namespace diamond {
     public:
         BgPageWriter(BgPageWriterQueue& queue);
 
-        virtual void write(const Page& page) override;
+        virtual void write(const Page* page) override;
 
     private:
         BgPageWriterQueue& _queue;
@@ -48,7 +48,7 @@ namespace diamond {
         BgPageWriterQueue(Storage& storage);
         ~BgPageWriterQueue();
 
-        void enqueue_write(const Page& page);
+        void enqueue_write(const Page* page);
 
     private:
         Storage& _storage;
@@ -65,7 +65,7 @@ namespace diamond {
             uint64_t pos;
         };
 
-        using Batch = std::unordered_map<PageID, BatchItem>;
+        using Batch = std::unordered_map<Page::ID, BatchItem>;
 
         std::list<Batch> _batches;
         std::list<Batch>::iterator _current_batch;

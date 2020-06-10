@@ -33,10 +33,8 @@ int main() {
         page_writer_factory,
         eviction_strategy_factory);
     diamond::StorageEngine engine(manager);
-    engine.insert(
-        diamond::Buffer("key"),
-        diamond::Buffer("value"));
-    std::cout << engine.get(diamond::Buffer("key")).to_str() << std::endl;
+    engine.insert("my_table", "key", "value");
+    std::cout << engine.get("my_table", "key") << std::endl;
 
     return 0;
 }

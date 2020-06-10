@@ -24,7 +24,7 @@ namespace diamond {
     BgPageWriter::BgPageWriter(BgPageWriterQueue& queue)
         : _queue(queue) {}
 
-    void BgPageWriter::write(const Page& page) {
+    void BgPageWriter::write(const Page* page) {
         _queue.enqueue_write(page);
     }
 
@@ -46,8 +46,8 @@ namespace diamond {
         }
     }
 
-    void BgPageWriterQueue::enqueue_write(const Page& page) {
-        Buffer buffer(PAGE_SIZE);
+    void BgPageWriterQueue::enqueue_write(const Page* page) {
+        Buffer buffer(Page::SIZE);
         page->write_to_buffer(buffer);
         boost::unique_lock<boost::mutex> lock(_mutex);
         if (_current_batch == _batches.end()) {

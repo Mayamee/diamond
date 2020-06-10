@@ -18,6 +18,7 @@
 #ifndef _DIAMOND_BUFFER_H
 #define _DIAMOND_BUFFER_H
 
+#include <ostream>
 #include <string>
 #include <type_traits>
 
@@ -31,7 +32,8 @@ namespace diamond {
     public:
         Buffer();
         Buffer(size_t size);
-        Buffer(char* buffer, size_t size);
+        Buffer(const char* buffer);
+        Buffer(const char* buffer, size_t size);
         Buffer(const std::string& str);
         Buffer(Storage& storage, size_t size, uint64_t offset);
 
@@ -57,10 +59,28 @@ namespace diamond {
         bool operator==(const Buffer& other) const;
         bool operator!=(const Buffer& other) const;
 
+        friend std::ostream& operator<<(std::ostream& os, const Buffer& buffer);
+
+        struct EqualTo {
+            bool operator()(const Buffer& lhs, const Buffer& rhs) const {
+                return lhs == rhs;
+            }
+        };
+
+        struct Hash {
+            size_t operator()(const Buffer& buffer) const {
+                size_t res = 0;
+                const size_t prime = 31;
+                for (size_t i = 0; i < buffer.size(); i++) {
+                    res = buffer[i] + (res * prime);
+                }
+                return res;
+            }
+        };
+
     private:
         size_t _size;
         char* _buffer;
-        bool _owns_buffer;
     };
 
     class BufferReader {

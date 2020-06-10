@@ -25,8 +25,10 @@ namespace diamond {
 
     enum class ErrorCode {
         CORRUPTED_FILE,
-        PAGE_DOES_NOT_EXIST,
-        NO_PAGE_SPACE_AVAILABLE
+        DUPLICATE_ENTRY_KEY,
+        ENTRY_NOT_FOUND,
+        NO_PAGE_SPACE_AVAILABLE,
+        PAGE_DOES_NOT_EXIST
     };
 
     class Exception : public std::exception {

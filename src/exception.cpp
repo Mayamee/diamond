@@ -35,10 +35,14 @@ namespace diamond {
         switch (code) {
         case ErrorCode::CORRUPTED_FILE:
             return "database file is corrupted.";
+        case ErrorCode::DUPLICATE_ENTRY_KEY:
+            return "entry with the provided key already exists.";
+        case ErrorCode::ENTRY_NOT_FOUND:
+            return "entry with the provided key does not exist.";
+        case ErrorCode::NO_PAGE_SPACE_AVAILABLE:
+            return "max page capacity has been reached and there are no unused pages available to evict.";
         case ErrorCode::PAGE_DOES_NOT_EXIST:
             return "the requested page does not exist.";
-        case ErrorCode::NO_PAGE_SPACE_AVAILABLE:
-            return "max page capacity has been reached and there are no unused pages available to evict";
         }
     }
 

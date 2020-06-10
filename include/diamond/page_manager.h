@@ -42,14 +42,14 @@ namespace diamond {
             size_t num_partitions = DEFAULT_NUM_PARTITIONS,
             size_t max_num_pages_in_partition = MAX_NUM_PAGES_IN_PARTITION);
 
-        PageAccessor create_page(PageType type);
+        PageAccessor create_page(Page::Type type, PageAccessor::Mode access_mode = PageAccessor::Mode::EXCLUSIVE);
 
-        PageAccessor get_page_accessor(PageID id, PageAccessorMode access_mode);
+        PageAccessor get_page_accessor(Page::ID id, PageAccessor::Mode access_mode);
 
-        void write_page(const Page& page);
-        void write_pages(const std::vector<Page>& pages);
+        void write_page(const Page* page);
+        void write_pages(const std::vector<Page*>& pages);
 
-        bool is_page_managed(PageID id);
+        bool is_page_managed(Page::ID id);
 
         Storage& storage();
         const Storage& storage() const;
@@ -57,15 +57,15 @@ namespace diamond {
     private:
         Storage& _storage;
         size_t _num_partitions;
-        std::atomic<PageID> _next_page_id;
+        std::atomic<Page::ID> _next_page_id;
 
         std::vector<std::unique_ptr<PageManagerPartition>> _partitions;
 
-        std::unique_ptr<PageManagerPartition>& get_partition(PageID id) {
+        std::unique_ptr<PageManagerPartition>& get_partition(Page::ID id) {
             return _partitions.at(id % _num_partitions);
         }
 
-        PageID next_page_id() {
+        Page::ID next_page_id() {
             return _next_page_id++;
         }
     };

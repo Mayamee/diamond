@@ -27,18 +27,18 @@ namespace diamond {
 
     class LRUEvictionStrategy final : public EvictionStrategy {
     public:
-        void update(PageID id) override;
+        void update(Page::ID id) override;
 
     private:
-        std::list<PageID> _list;
+        std::list<Page::ID> _list;
         std::unordered_map<
-            PageID,
-            std::list<PageID>::iterator
+            Page::ID,
+            std::list<Page::ID>::iterator
         > _iters;
 
-        void add(PageID id) override;
-        PageID next(PageID after = 0) override;
-        void remove(PageID id) override;
+        void add(Page::ID id) override;
+        Page::ID next(Page::ID after = 0) override;
+        void remove(Page::ID id) override;
     };
 
     class LRUEvictionStrategyFactory final : public EvictionStrategyFactory {

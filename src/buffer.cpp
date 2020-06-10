@@ -24,54 +24,45 @@ namespace diamond {
 
     Buffer::Buffer()
         : _size(0),
-        _buffer(nullptr),
-        _owns_buffer(true) {}
+        _buffer(nullptr) {}
 
     Buffer::Buffer(size_t size)
         : _size(size),
-        _buffer(new char[size]),
-        _owns_buffer(true) {}
+        _buffer(new char[size]) {}
 
-    Buffer::Buffer(char* buffer, size_t size)
-        : _size(size),
-        _buffer(buffer),
-        _owns_buffer(false) {}
+    Buffer::Buffer(const char* buffer)
+        : Buffer(buffer, strlen(buffer)) {}
+
+    Buffer::Buffer(const char* buffer, size_t size)
+            : _size(size),
+            _buffer(new char[size]) {
+        std::memcpy(_buffer, buffer, _size);
+    }
 
     Buffer::Buffer(const std::string& str)
-            : _size(str.size()),
-            _buffer(new char[str.size()]),
-            _owns_buffer(true) {
-        std::strcpy(_buffer, str.c_str());
-    }
+        : Buffer(str.c_str(), str.size()) {}
 
     Buffer::Buffer(Storage& storage, size_t size, uint64_t offset)
             : _size(size),
-            _buffer(new char[size]),
-            _owns_buffer(true) {
+            _buffer(new char[size]) {
         storage.read(_buffer, size, offset);
     }
 
     Buffer::Buffer(const Buffer& other)
             : _size(other._size),
-            _buffer(new char[other._size]),
-            _owns_buffer(true) {
+            _buffer(new char[other._size]){
         std::memcpy(_buffer, other._buffer, _size);
     }
 
     Buffer::Buffer(Buffer&& other)
             : _size(other._size),
-            _buffer(other._buffer),
-            _owns_buffer(other._owns_buffer)  {
-        if (_owns_buffer) {
-            other._size = 0;
-            other._buffer = nullptr;
-        }
+            _buffer(other._buffer)  {
+        other._size = 0;
+        other._buffer = nullptr;
     }
 
     Buffer::~Buffer() {
-        if (_owns_buffer && _buffer) {
-            delete[] _buffer;
-        }
+        if (_buffer) delete[] _buffer;
     }
 
     size_t Buffer::size() const {
@@ -100,10 +91,9 @@ namespace diamond {
 
     Buffer& Buffer::operator=(const Buffer& other) {
         if (this != &other) {
-            if (_owns_buffer && _buffer) delete[] _buffer;
+            if (_buffer) delete[] _buffer;
             _size = other._size;
             _buffer = new char[_size];
-            _owns_buffer = true;
             std::memcpy(_buffer, other._buffer, _size);
         }
 
@@ -112,14 +102,11 @@ namespace diamond {
 
     Buffer& Buffer::operator=(Buffer&& other) {
         if (this != &other) {
-            if (_owns_buffer && _buffer) delete[] _buffer;
+            if (_buffer) delete[] _buffer;
             _size = other._size;
             _buffer = other._buffer;
-            _owns_buffer = other._owns_buffer;
-            if (_owns_buffer) {
-                other._size = 0;
-                other._buffer = nullptr;
-            }
+            other._size = 0;
+            other._buffer = nullptr;
         }
 
         return *this;
@@ -132,6 +119,11 @@ namespace diamond {
 
     bool Buffer::operator!=(const Buffer& other) const {
         return !(*this == other);
+    }
+
+    std::ostream& operator<<(std::ostream& os, const Buffer& buffer) {
+        os << buffer.to_str();
+        return os;
     }
 
     BufferReader::BufferReader(const Buffer& buffer, endian::Endianness endianness)

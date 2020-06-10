@@ -34,14 +34,18 @@ namespace diamond {
             std::shared_ptr<PageWriter> page_writer,
             std::shared_ptr<EvictionStrategy> eviction_strategy,
             size_t max_num_pages);
+        ~PageManagerPartition();
 
-        PageAccessor create_page(PageID id, PageType type);
+        PageAccessor create_page(
+            Page::ID id,
+            Page::Type type,
+            PageAccessor::Mode access_mode = PageAccessor::Mode::EXCLUSIVE);
 
-        PageAccessor get_page_accessor(PageID id, PageAccessorMode access_mode);
+        PageAccessor get_page_accessor(Page::ID id, PageAccessor::Mode access_mode);
 
-        void write_page(const Page& page);
+        void write_page(const Page* page);
 
-        bool is_page_managed(PageID id);
+        bool is_page_managed(Page::ID id);
 
     private:
         Storage& _storage;
@@ -49,21 +53,14 @@ namespace diamond {
         std::shared_ptr<EvictionStrategy> _eviction_strategy;
         size_t _max_num_pages;
 
-        struct ManagedPage {
-            ManagedPage(const Page& _page);
-
-            Page page;
-            std::shared_ptr<boost::shared_mutex> mutex;
-        };
-
         std::unordered_map<
-            PageID,
-            ManagedPage
+            Page::ID,
+            Page*
         > _pages;
 
         boost::mutex _mutex;
 
-        void add_page(const Page& page);
+        void add_page(Page* page);
     };
 
 } // namespace diamond

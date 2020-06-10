@@ -19,31 +19,31 @@
 
 namespace diamond {
 
-    void LRUEvictionStrategy::update(PageID id) {
+    void LRUEvictionStrategy::update(Page::ID id) {
         _list.splice(
             _list.begin(),
             _list,
             _iters.at(id));
     }
 
-    void LRUEvictionStrategy::add(PageID id) {
+    void LRUEvictionStrategy::add(Page::ID id) {
         _list.push_front(id);
         _iters[id] = _list.begin();
     }
 
-    PageID LRUEvictionStrategy::next(PageID after) {
-        if (after != INVALID_PAGE) {
+    Page::ID LRUEvictionStrategy::next(Page::ID after) {
+        if (after != Page::INVALID_ID) {
             auto iter = _iters.at(after);
             if (iter != _list.end()) {
                 return *iter;
             }
-            return INVALID_PAGE;
+            return Page::INVALID_ID;
         } else {
             return *_list.begin();
         }
     }
 
-    void LRUEvictionStrategy::remove(PageID id) {
+    void LRUEvictionStrategy::remove(Page::ID id) {
         _list.erase(_iters[id]);
         _iters.erase(id);
     }

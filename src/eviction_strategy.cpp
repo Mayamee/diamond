@@ -19,10 +19,10 @@
 
 namespace diamond {
 
-    PageID EvictionStrategy::evict() {
-        PageID to_evict = next();
-        while (to_evict != INVALID_PAGE) {
-            if (_tracked_pages.at(to_evict)->usage_count() == 1) {
+    Page::ID EvictionStrategy::evict() {
+        Page::ID to_evict = next();
+        while (to_evict != Page::INVALID_ID) {
+            if (_tracked_pages.at(to_evict)->usage_count() == 0) {
                 _tracked_pages.erase(to_evict);
                 remove(to_evict);
                 return to_evict;
@@ -34,8 +34,8 @@ namespace diamond {
         return to_evict;
     }
 
-    void EvictionStrategy::track(const Page& page) {
-        PageID id = page->get_id();
+    void EvictionStrategy::track(const Page* page) {
+        Page::ID id = page->get_id();
         if (_tracked_pages.find(id) != _tracked_pages.end()) {
             throw std::logic_error("already tracking this page");
         }

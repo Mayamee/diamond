@@ -26,7 +26,7 @@ namespace diamond {
     public:
         SyncPageWriter(Storage& storage);
 
-        void write(const Page& page) override;
+        void write(const Page* page) override;
 
     private:
         Storage& _storage;

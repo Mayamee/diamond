@@ -27,17 +27,19 @@ namespace diamond {
     public:
         StorageEngine(
             PageManager& page_manager,
-            PageCompare compare_func = &page_default_compare);
+            Page::Compare compare_func = &Page::default_compare);
 
-        Buffer get(const Buffer& key);
-        void insert(const Buffer& key, const Buffer& val);
+        Buffer get(const Buffer& id, const Buffer& key);
+        void insert(const Buffer& id, const Buffer& key, const Buffer& val);
 
     private:
         PageManager& _manager;
-        PageCompare _compare_func;
+        Page::Compare _compare_func;
 
-        PageID get_leaf_page_id(const Buffer& key);
+        PageAccessor get_leaf_page(const Buffer& id, const Buffer& key);
         PageAccessor get_free_data_page(const Buffer& val);
+        bool get_root_node_id(const Buffer& id, Page::ID& root_node_id);
+        PageAccessor create_root_node_page(const Buffer& id);
     };
 
 }

@@ -23,7 +23,7 @@ namespace {
 
     class MockPageWriter : public diamond::PageWriter {
     public:
-        MOCK_METHOD(void, write, (const diamond::Page& page), (override));
+        MOCK_METHOD(void, write, (const diamond::Page* page), (override));
     };
 
     class MockPageWriterFactory : public diamond::PageWriterFactory {

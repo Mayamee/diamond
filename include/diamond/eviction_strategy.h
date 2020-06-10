@@ -27,19 +27,19 @@ namespace diamond {
 
     class EvictionStrategy {
     public:
-        PageID evict();
-        virtual void update(PageID id) = 0;
-        void track(const Page& page);
+        Page::ID evict();
+        virtual void update(Page::ID id) = 0;
+        void track(const Page* page);
 
     protected:
-        virtual void add(PageID id) = 0;
-        virtual PageID next(PageID after = INVALID_PAGE) = 0;
-        virtual void remove(PageID id) = 0;
+        virtual void add(Page::ID id) = 0;
+        virtual Page::ID next(Page::ID after = Page::INVALID_ID) = 0;
+        virtual void remove(Page::ID id) = 0;
 
     private:
         std::unordered_map<
-            PageID,
-            Page
+            Page::ID,
+            const Page*
         > _tracked_pages;
     };
 

@@ -23,10 +23,10 @@ namespace {
 
     class MockEvictionStrategy : public diamond::EvictionStrategy {
     public:
-        MOCK_METHOD(void, update, (diamond::PageID id), (override));
-        MOCK_METHOD(void, add, (diamond::PageID id), (override));
-        MOCK_METHOD(diamond::PageID, next, (diamond::PageID id), (override));
-        MOCK_METHOD(void, remove, (diamond::PageID id), (override));
+        MOCK_METHOD(void, update, (diamond::Page::ID id), (override));
+        MOCK_METHOD(void, add, (diamond::Page::ID id), (override));
+        MOCK_METHOD(diamond::Page::ID, next, (diamond::Page::ID id), (override));
+        MOCK_METHOD(void, remove, (diamond::Page::ID id), (override));
     };
 
     class MockEvictionStrategyFactory : public diamond::EvictionStrategyFactory {

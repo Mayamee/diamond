@@ -25,7 +25,7 @@ namespace diamond {
 
     class MemoryStorage final : public Storage {
     public:
-        MemoryStorage(size_t initial_size = PAGE_SIZE);
+        MemoryStorage(size_t initial_size = Page::SIZE);
         ~MemoryStorage();
 
     private:

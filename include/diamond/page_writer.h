@@ -24,7 +24,7 @@ namespace diamond {
 
     class PageWriter {
     public:
-        virtual void write(const Page& page) = 0;
+        virtual void write(const Page* page) = 0;
     };
 
     class PageWriterFactory {

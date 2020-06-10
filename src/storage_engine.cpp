@@ -14,72 +14,79 @@
 **  You should have received a copy of the GNU General Public License
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-#include <iostream>
+
 #include "diamond/storage_engine.h"
 #include "diamond/exception.h"
 
 namespace diamond {
 
-    StorageEngine::StorageEngine(PageManager& page_manager, PageCompare compare_func)
+    StorageEngine::StorageEngine(PageManager& page_manager, Page::Compare compare_func)
             : _manager(page_manager),
             _compare_func(compare_func) {
         if (_manager.storage().size() == 0) {
-            _manager.create_page(PageType::LEAF_NODE);
-            _manager.create_page(PageType::FREE_LIST);
+            _manager.create_page(Page::Type::ROOTS);
+            _manager.create_page(Page::Type::FREE_LIST);
         }
     }
 
-    Buffer StorageEngine::get(const Buffer& key) {
-        PageID page_id = get_leaf_page_id(key);
-        PageAccessor accessor = _manager.get_page_accessor(
-            page_id,
-            PageAccessorMode::SHARED);
-        const Page& page = accessor.page();
-        size_t i;
-        if (!page->find_leaf_node_entry(key, _compare_func, i)) return Buffer();
-        const LeafNodeEntry& entry = page->get_leaf_node_entry(i);
+    Buffer StorageEngine::get(const Buffer& id, const Buffer& key) {
+        PageAccessor page = get_leaf_page(id, key);
+        Page::LeafNodeEntryListIterator iter = page->find_leaf_node_entry(key, _compare_func);
+        if (iter == page->leaf_node_entries_end()) {
+            throw Exception(ErrorCode::ENTRY_NOT_FOUND);
+        }
+        const Page::LeafNodeEntry& entry = *iter;
         PageAccessor data_accessor = _manager.get_page_accessor(
             entry.data_id(),
-            PageAccessorMode::SHARED);
-        return Buffer(data_accessor.page()->get_data_entry(entry.data_index()).data());      
+            PageAccessor::Mode::SHARED);
+        return Buffer(data_accessor->get_data_entry(entry.data_index()).data());      
     }
 
-    void StorageEngine::insert(const Buffer& key, const Buffer& val) {
-        PageID page_id = get_leaf_page_id(key);
-        PageAccessor accessor = _manager.get_page_accessor(page_id, PageAccessorMode::UPGRADE);
-        const Page& page = accessor.page();
-        if (page->can_insert_leaf_node_entry(key)) {
-            PageID data_page_id;
-            size_t data_page_index;
-            {
-                PageAccessor data_accessor = get_free_data_page(val);
-                const Page& data_page = data_accessor.page();
-                data_page_id = data_page->get_id();
-                data_page_index = data_page->insert_data_entry(val);
-                _manager.write_page(data_page);
-            }
-            accessor.upgrade_lock();
-            page->insert_leaf_node_entry(key, data_page_id, data_page_index);
-            _manager.write_page(page);
-            return;
+    void StorageEngine::insert(const Buffer& id, const Buffer& key, const Buffer& val) {
+        // TODO: Figure out locking
+        // PageAccessor accessor = get_leaf_page(id, key);
+        // const Page& page = accessor.page();
+        // LeafNodeEntryListIterator iter = page->find_leaf_node_entry(key, _compare_func);
+        // if (iter != page->leaf_node_entries_end()) {
+        //     throw Exception(ErrorCode::DUPLICATE_ENTRY_KEY);
+        // }
+
+        // Page::ID data_page_id;
+        // size_t data_page_index;
+        // {
+        //     PageAccessor data_accessor = get_free_data_page(val);
+        //     const Page& data_page = data_accessor.page();
+        //     data_page_id = data_page->get_id();
+        //     data_page_index = data_page->insert_data_entry(val);
+        //     _manager.write_page(data_page);
+        // }
+
+        // if (page->can_insert_leaf_node_entry(key)) {
+        //     page->insert_leaf_node_entry(key, data_page_id, data_page_index);
+        //     _manager.write_page(page);
+        //     return;
+        // }
+
+        // PageAccessor leaf_accessor = _manager.create_page(Page::Type::LEAF_NODE);
+        // page->split_leaf_node_entries(leaf_accessor.page());
+    }
+
+    PageAccessor StorageEngine::get_leaf_page(const Buffer& id, const Buffer& key) {
+        Page::ID page_id;
+        if (!get_root_node_id(id, page_id)) {
+            return create_root_node_page(id);
         }
-        // split here
-    }
-
-    PageID StorageEngine::get_leaf_page_id(const Buffer& key) {
-        PageID page_id = 1;
         while (true) {
-            PageAccessor accessor = _manager.get_page_accessor(page_id, PageAccessorMode::SHARED);
-            const Page& page = accessor.page();
-            PageType type = page->get_type();
+            PageAccessor page = _manager.get_page_accessor(page_id, PageAccessor::Mode::SHARED);
+            Page::Type type = page->get_type();
             switch (type) {
-            case PageType::INTERNAL_NODE: {
+            case Page::Type::INTERNAL_NODE: {
                 size_t i = page->search_internal_node_entries(key, _compare_func);
                 page_id = page->get_internal_node_entry(i).next_node_id();
                 break;
             }
-            case PageType::LEAF_NODE:
-                return page_id;
+            case Page::Type::LEAF_NODE:
+                return page;
             default:
                 throw Exception(ErrorCode::CORRUPTED_FILE);
             }
@@ -87,40 +94,74 @@ namespace diamond {
     }
 
     PageAccessor StorageEngine::get_free_data_page(const Buffer& val) {
-        PageID data_page;
-        PageID page_id = 2;
-        while (page_id) {
-            PageAccessor accessor = _manager.get_page_accessor(page_id, PageAccessorMode::EXCLUSIVE);
-            const Page& page = accessor.page();
-            if (page->get_type() != PageType::FREE_LIST) {
+        Page::ID data_page;
+        Page::ID page_id = 2;
+        while (true) {
+            PageAccessor page = _manager.get_page_accessor(page_id, PageAccessor::Mode::EXCLUSIVE);
+            if (page->get_type() != Page::Type::FREE_LIST) {
                 throw Exception(ErrorCode::CORRUPTED_FILE);
             }
 
             if (page->reserve_free_list_entry(val, data_page)) {
-                return _manager.get_page_accessor(data_page, PageAccessorMode::EXCLUSIVE);
+                return _manager.get_page_accessor(data_page, PageAccessor::Mode::EXCLUSIVE);
             }
 
             page_id = page->get_next_free_list_page();
-            if (page_id) continue;
+            if (page_id == Page::INVALID_ID) {
+                PageAccessor new_data_page = _manager.create_page(Page::Type::DATA);
+                if (page->can_insert_free_list_entry()) {
+                    page->insert_free_list_entry(
+                        new_data_page->get_id(),
+                        new_data_page->get_remaining_space());
+                } else {
+                    PageAccessor new_free_list_page = _manager.create_page(Page::Type::FREE_LIST);
+                    new_free_list_page->insert_free_list_entry(
+                        new_data_page->get_id(),
+                        new_data_page->get_remaining_space());
+                    page->set_next_free_list_page(new_free_list_page->get_id());
+                    _manager.write_page(new_free_list_page.page());
+                }
+                _manager.write_page(page.page());
 
-            PageAccessor new_data_accessor = _manager.create_page(PageType::DATA);
-            const Page& new_data_page = new_data_accessor.page();
-            if (page->can_insert_free_list_entry()) {
-                page->insert_free_list_entry(
-                    new_data_page->get_id(),
-                    new_data_page->get_remaining_space());
-            } else {
-                PageAccessor new_free_list_accessor = _manager.create_page(PageType::FREE_LIST);
-                const Page& new_free_list_page = new_data_accessor.page();
-                new_free_list_page->insert_free_list_entry(
-                    new_data_page->get_id(),
-                    new_data_page->get_remaining_space());
-                page->set_next_free_list_page(new_free_list_page->get_id());
-                _manager.write_page(new_free_list_page);
+                return new_data_page;
             }
-            _manager.write_page(page);
+        }
+    }
 
-            return new_data_accessor;
+    bool StorageEngine::get_root_node_id(const Buffer& id, Page::ID& root_node_id) {
+        Page::ID page_id = 1;
+        while (page_id != Page::INVALID_ID) {
+            PageAccessor page = _manager.get_page_accessor(page_id, PageAccessor::Mode::SHARED);
+            if (page->get_root_node_id(id, root_node_id)) {
+                return true;
+            }
+
+            page_id = page->get_next_roots_page();
+        }
+
+        return false;
+    }
+
+    PageAccessor StorageEngine::create_root_node_page(const Buffer& id) {
+        Page::ID page_id = 1;
+        while (true) {
+            PageAccessor page = _manager.get_page_accessor(page_id, PageAccessor::Mode::EXCLUSIVE);
+            page_id = page->get_next_roots_page();
+            if (page_id != Page::INVALID_ID) continue;
+            PageAccessor root_page = _manager.create_page(Page::Type::LEAF_NODE, PageAccessor::Mode::SHARED);
+            if (page->can_insert_root_node_id(id)) {
+                page->set_root_node_id(id, root_page->get_id());
+                _manager.write_page(page.page());
+                return root_page;
+            }
+
+            PageAccessor new_roots_page = _manager.create_page(Page::Type::ROOTS);
+            new_roots_page->set_root_node_id(id, root_page->get_id());
+            page->set_next_roots_page(new_roots_page->get_id());
+            _manager.write_page(new_roots_page.page());
+            _manager.write_page(page.page());
+
+            return root_page;
         }
     }
 
