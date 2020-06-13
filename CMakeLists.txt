@@ -30,6 +30,7 @@ include_directories(${Boost_INCLUDE_DIRS})
 add_library(diamond SHARED
     src/bg_page_writer.cpp
     src/buffer.cpp
+    src/db.cpp
     src/eviction_strategy.cpp
     src/exception.cpp
     src/file_storage.cpp
@@ -41,7 +42,8 @@ add_library(diamond SHARED
     src/page_manager_partition.cpp
     src/storage.cpp
     src/storage_engine.cpp
-    src/sync_page_writer.cpp)
+    src/sync_page_writer.cpp
+    src/value_processors.cpp)
 
 target_link_libraries(diamond
     pthread

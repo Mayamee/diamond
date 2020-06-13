@@ -1,4 +1,4 @@
-/*  Diamond - Embedded Relational Database
+/*  Diamond - Embedded NoSQL Database
 **  Copyright (C) 2020  Zach Perkitny
 **
 **  This program is free software: you can redistribute it and/or modify
@@ -163,6 +163,10 @@ namespace diamond {
 
     void BufferWriter::write(const Buffer& buffer) {
         write(buffer.buffer(), buffer.size());
+    }
+
+    void BufferWriter::write(const std::string& str) {
+        write(str.c_str(), str.size());
     }
 
     void BufferWriter::write(const void* val, size_t size) {

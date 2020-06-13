@@ -1,4 +1,4 @@
-/*  Diamond - Embedded Relational Database
+/*  Diamond - Embedded NoSQL Database
 **  Copyright (C) 2020  Zach Perkitny
 **
 **  This program is free software: you can redistribute it and/or modify
@@ -30,7 +30,7 @@ namespace diamond {
             Page::Compare compare_func = &Page::default_compare);
 
         Buffer get(const Buffer& id, const Buffer& key);
-        void insert(const Buffer& id, const Buffer& key, const Buffer& val);
+        void insert(const Buffer& id, Buffer key, Buffer val);
 
     private:
         PageManager& _manager;

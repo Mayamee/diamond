@@ -1,4 +1,4 @@
-/*  Diamond - Embedded Relational Database
+/*  Diamond - Embedded NoSQL Database
 **  Copyright (C) 2020  Zach Perkitny
 **
 **  This program is free software: you can redistribute it and/or modify
@@ -112,6 +112,9 @@ namespace diamond {
         void read(Buffer& buffer);
         void read(void* val, size_t size);
 
+        template <class T>
+        BufferReader& operator>>(T& val);
+
     private:
         size_t _ptr;
         const Buffer& _buffer;
@@ -145,7 +148,11 @@ namespace diamond {
         write(T val);
 
         void write(const Buffer& buffer);
+        void write(const std::string& str);
         void write(const void* val, size_t size);
+
+        template <class T>
+        BufferWriter& operator<<(T obj);
 
     private:
         size_t _ptr;
@@ -184,6 +191,12 @@ namespace diamond {
     }
 
     template <class T>
+    BufferReader& BufferReader::operator>>(T& val) {
+        val = read<T>();
+        return *this;
+    }
+
+    template <class T>
     typename std::enable_if<
         !std::is_enum<T>::value &&
         !std::is_arithmetic<T>::value &&
@@ -207,6 +220,12 @@ namespace diamond {
             endian::swap_endianness(val);
         }
         return write(&val, sizeof(T));
+    }
+
+    template <class T>
+    BufferWriter& BufferWriter::operator<<(T obj) {
+        write(obj);
+        return *this;
     }
 
 } // namespace diamond

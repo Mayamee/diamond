@@ -15,30 +15,18 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _DIAMOND_MEMORY_STORAGE_H
-#define _DIAMOND_MEMORY_STORAGE_H
-
-#include "diamond/page.h"
-#include "diamond/storage.h"
+#include "diamond/value_processors.h"
 
 namespace diamond {
 
-    class MemoryStorage final : public Storage {
-    public:
-        MemoryStorage(size_t initial_size = Page::SIZE);
-        ~MemoryStorage();
+    SizeCalculator::SizeCalculator()
+        : _size(0) {}
 
-    private:
-        char* _buffer;
-        size_t _pos;
-        size_t _size;
+    size_t SizeCalculator::size() const {
+        return _size;
+    }
 
-        void write_impl(const char* buffer, size_t n) override;
-        void read_impl(char* buffer, size_t n) override;
-        void seek_impl(size_t n) override;
-        uint64_t size_impl() override;
-    };
+    Serializer::Serializer(Buffer& buffer)
+        : _writer(buffer) {}
 
 } // namespace diamond
-
-#endif // _DIAMOND_MEMORY_STORAGE_H

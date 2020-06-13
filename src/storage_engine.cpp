@@ -1,4 +1,4 @@
-/*  Diamond - Embedded Relational Database
+/*  Diamond - Embedded NoSQL Database
 **  Copyright (C) 2020  Zach Perkitny
 **
 **  This program is free software: you can redistribute it and/or modify
@@ -42,7 +42,7 @@ namespace diamond {
         return Buffer(data_accessor->get_data_entry(entry.data_index()).data());      
     }
 
-    void StorageEngine::insert(const Buffer& id, const Buffer& key, const Buffer& val) {
+    void StorageEngine::insert(const Buffer& id, Buffer key, Buffer val) {
         // TODO: Figure out locking
         // PageAccessor accessor = get_leaf_page(id, key);
         // const Page& page = accessor.page();

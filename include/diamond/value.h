@@ -15,30 +15,47 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _DIAMOND_MEMORY_STORAGE_H
-#define _DIAMOND_MEMORY_STORAGE_H
+#ifndef _DIAMOND_VALUE_H
+#define _DIAMOND_VALUE_H
 
-#include "diamond/page.h"
-#include "diamond/storage.h"
+#include <cstddef>
 
 namespace diamond {
 
-    class MemoryStorage final : public Storage {
+    template <class T>
+    class Value {
     public:
-        MemoryStorage(size_t initial_size = Page::SIZE);
-        ~MemoryStorage();
+        void load(BufferReader& reader);
+        void store(BufferWriter& writer);
+        size_t size() const;
 
-    private:
-        char* _buffer;
-        size_t _pos;
-        size_t _size;
+        Value& operator=(const T& val);
 
-        void write_impl(const char* buffer, size_t n) override;
-        void read_impl(char* buffer, size_t n) override;
-        void seek_impl(size_t n) override;
-        uint64_t size_impl() override;
+    protected:
+        T _val;
     };
+
+    template <class T>
+    void Value<T>::load(BufferReader& reader) {
+        reader >> _val;
+    }
+
+    template <class T>
+    void Value<T>::store(BufferWriter& writer) {
+        writer << _val; 
+    }
+
+    template <class T>
+    size_t Value<T>::size() const {
+        return 0;
+    }
+
+    template <class T>
+    Value<T>& Value<T>::operator=(const T& val) {
+        _val = val;
+        return *this;
+    }
 
 } // namespace diamond
 
-#endif // _DIAMOND_MEMORY_STORAGE_H
+#endif // _DIAMOND_VALUE_H

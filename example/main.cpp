@@ -1,4 +1,4 @@
-/*  Diamond - Embedded Relational Database
+/*  Diamond - Embedded NoSQL Database
 **  Copyright (C) 2020  Zach Perkitny
 **
 **  This program is free software: you can redistribute it and/or modify
@@ -18,9 +18,27 @@
 #include <iostream>
 
 #include "diamond/bg_page_writer.h"
+#include "diamond/db.h"
 #include "diamond/lru_eviction_strategy.h"
 #include "diamond/file_storage.h"
-#include "diamond/storage_engine.h"
+
+struct Person {
+    diamond::Value<std::string> key;
+    diamond::Value<std::string> first_name;
+    diamond::Value<std::string> last_name;
+    diamond::Value<std::string> gender;
+    diamond::Value<uint8_t> height;
+    diamond::Value<uint16_t> weight;
+
+    template <class ValueProcessor>
+    void process_values(ValueProcessor processor) {
+        processor & first_name;
+        processor & last_name;
+        processor & gender;
+        processor & height;
+        processor & weight;
+    }
+};
 
 int main() {
 
@@ -33,8 +51,22 @@ int main() {
         page_writer_factory,
         eviction_strategy_factory);
     diamond::StorageEngine engine(manager);
-    engine.insert("my_table", "key", "value");
-    std::cout << engine.get("my_table", "key") << std::endl;
+    diamond::Db db(engine);
+    {
+        Person me;
+        me.key = "zach-perkitny";
+        me.first_name = "zach";
+        me.last_name = "perkitny";
+        me.gender = "male";
+        me.height = 70;
+        me.weight = 155;
+
+        db.insert<Person>(me);
+    }
+
+    {
+        Person me = db.get<Person>("zach-perkitny");
+    }
 
     return 0;
 }
