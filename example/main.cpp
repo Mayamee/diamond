@@ -19,24 +19,25 @@
 
 #include "diamond/bg_page_writer.h"
 #include "diamond/db.h"
-#include "diamond/lru_eviction_strategy.h"
+#include "diamond/lru_eviction_policy.h"
 #include "diamond/file_storage.h"
+#include "diamond/partitioned_page_manager.h"
 
 struct Person {
-    diamond::Value<std::string> key;
-    diamond::Value<std::string> first_name;
-    diamond::Value<std::string> last_name;
-    diamond::Value<std::string> gender;
-    diamond::Value<uint8_t> height;
-    diamond::Value<uint16_t> weight;
+    std::string key;
+    std::string first_name;
+    std::string last_name;
+    std::string gender;
+    uint8_t height;
+    uint16_t weight;
 
-    template <class ValueProcessor>
-    void process_values(ValueProcessor processor) {
-        processor & first_name;
-        processor & last_name;
-        processor & gender;
-        processor & height;
-        processor & weight;
+    template <class Archive>
+    void serialize(Archive& archive) {
+        archive & first_name;
+        archive & last_name;
+        archive & gender;
+        archive & height;
+        archive & weight;
     }
 };
 
@@ -45,11 +46,11 @@ int main() {
     diamond::FileStorage storage("data");
     diamond::BgPageWriterQueue page_writer_queue(storage);
     diamond::BgPageWriterFactory page_writer_factory(page_writer_queue);
-    diamond::LRUEvictionStrategyFactory eviction_strategy_factory;
-    diamond::PageManager manager(
+    diamond::LRUEvictionPolicyFactory eviction_policy_factory;
+    diamond::PartitionedPageManager manager(
         storage,
         page_writer_factory,
-        eviction_strategy_factory);
+        eviction_policy_factory);
     diamond::StorageEngine engine(manager);
     diamond::Db db(engine);
     {

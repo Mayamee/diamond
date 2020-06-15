@@ -15,23 +15,23 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include "diamond/lru_eviction_strategy.h"
+#include "diamond/lru_eviction_policy.h"
 
 namespace diamond {
 
-    void LRUEvictionStrategy::update(Page::ID id) {
+    void LRUEvictionPolicy::update(Page::ID id) {
         _list.splice(
             _list.begin(),
             _list,
             _iters.at(id));
     }
 
-    void LRUEvictionStrategy::add(Page::ID id) {
+    void LRUEvictionPolicy::add(Page::ID id) {
         _list.push_front(id);
         _iters[id] = _list.begin();
     }
 
-    Page::ID LRUEvictionStrategy::next(Page::ID after) {
+    Page::ID LRUEvictionPolicy::next(Page::ID after) {
         if (after != Page::INVALID_ID) {
             auto iter = _iters.at(after);
             if (iter != _list.end()) {
@@ -43,13 +43,13 @@ namespace diamond {
         }
     }
 
-    void LRUEvictionStrategy::remove(Page::ID id) {
+    void LRUEvictionPolicy::remove(Page::ID id) {
         _list.erase(_iters[id]);
         _iters.erase(id);
     }
 
-    std::shared_ptr<EvictionStrategy> LRUEvictionStrategyFactory::create() const {
-        return std::make_shared<LRUEvictionStrategy>();
+    std::shared_ptr<EvictionPolicy> LRUEvictionPolicyFactory::create() const {
+        return std::make_shared<LRUEvictionPolicy>();
     }
 
 } // namespace diamond

@@ -15,61 +15,32 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _DIAMOND_STORAGE_PAGE_MANAGER_H
-#define _DIAMOND_STORAGE_PAGE_MANAGER_H
+#ifndef _DIAMOND_PAGE_MANAGER_H
+#define _DIAMOND_PAGE_MANAGER_H
 
 #include <atomic>
-#include <tuple>
-#include <unordered_map>
-#include <vector>
 
-#include <boost/thread.hpp>
-#include <boost/utility.hpp>
-
-#include "diamond/page_manager_partition.h"
+#include "diamond/page_accessor.h"
+#include "diamond/utility.h"
 
 namespace diamond {
 
-    class PageManager : boost::noncopyable {
+    class PageManager : noncopyable {
     public:
-        static const size_t DEFAULT_NUM_PARTITIONS = 128;
-        static const size_t MAX_NUM_PAGES_IN_PARTITION = 100;
+        PageManager(Storage& storage);
 
-        PageManager(
-            Storage& storage,
-            PageWriterFactory& page_writer_factory,
-            EvictionStrategyFactory& eviction_strategy_factory,
-            size_t num_partitions = DEFAULT_NUM_PARTITIONS,
-            size_t max_num_pages_in_partition = MAX_NUM_PAGES_IN_PARTITION);
+        virtual PageAccessor create_page(Page::Type type, PageAccessor::Mode access_mode) = 0;
+        virtual PageAccessor get_page(Page::ID id, PageAccessor::Mode access_mode) = 0;
+        virtual void write_page(const Page* page) = 0;
+        virtual bool is_page_managed(Page::ID id) const = 0;
 
-        PageAccessor create_page(Page::Type type, PageAccessor::Mode access_mode = PageAccessor::Mode::EXCLUSIVE);
+        Storage& storage() const;
 
-        PageAccessor get_page_accessor(Page::ID id, PageAccessor::Mode access_mode);
-
-        void write_page(const Page* page);
-        void write_pages(const std::vector<Page*>& pages);
-
-        bool is_page_managed(Page::ID id);
-
-        Storage& storage();
-        const Storage& storage() const;
-
-    private:
+    protected:
         Storage& _storage;
-        size_t _num_partitions;
         std::atomic<Page::ID> _next_page_id;
-
-        std::vector<std::unique_ptr<PageManagerPartition>> _partitions;
-
-        std::unique_ptr<PageManagerPartition>& get_partition(Page::ID id) {
-            return _partitions.at(id % _num_partitions);
-        }
-
-        Page::ID next_page_id() {
-            return _next_page_id++;
-        }
     };
 
 } // namespace diamond
 
-#endif // _DIAMOND_STORAGE_PAGE_MANAGER_H
+#endif // _DIAMOND_PAGE_MANAGER_H

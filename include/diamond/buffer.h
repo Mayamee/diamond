@@ -43,6 +43,7 @@ namespace diamond {
         ~Buffer();
 
         size_t size() const;
+        // void resize(size_t s);
 
         char* buffer();
         const char* buffer() const;

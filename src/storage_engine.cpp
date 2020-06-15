@@ -24,8 +24,8 @@ namespace diamond {
             : _manager(page_manager),
             _compare_func(compare_func) {
         if (_manager.storage().size() == 0) {
-            _manager.create_page(Page::Type::ROOTS);
-            _manager.create_page(Page::Type::FREE_LIST);
+            _manager.create_page(Page::Type::ROOTS, PageAccessor::Mode::SHARED);
+            _manager.create_page(Page::Type::FREE_LIST, PageAccessor::Mode::SHARED);
         }
     }
 
@@ -36,9 +36,7 @@ namespace diamond {
             throw Exception(ErrorCode::ENTRY_NOT_FOUND);
         }
         const Page::LeafNodeEntry& entry = *iter;
-        PageAccessor data_accessor = _manager.get_page_accessor(
-            entry.data_id(),
-            PageAccessor::Mode::SHARED);
+        PageAccessor data_accessor = _manager.get_page(entry.data_id(), PageAccessor::Mode::SHARED);
         return Buffer(data_accessor->get_data_entry(entry.data_index()).data());      
     }
 
@@ -77,7 +75,7 @@ namespace diamond {
             return create_root_node_page(id);
         }
         while (true) {
-            PageAccessor page = _manager.get_page_accessor(page_id, PageAccessor::Mode::SHARED);
+            PageAccessor page = _manager.get_page(page_id, PageAccessor::Mode::SHARED);
             Page::Type type = page->get_type();
             switch (type) {
             case Page::Type::INTERNAL_NODE: {
@@ -97,24 +95,28 @@ namespace diamond {
         Page::ID data_page;
         Page::ID page_id = 2;
         while (true) {
-            PageAccessor page = _manager.get_page_accessor(page_id, PageAccessor::Mode::EXCLUSIVE);
+            PageAccessor page = _manager.get_page(page_id, PageAccessor::Mode::EXCLUSIVE);
             if (page->get_type() != Page::Type::FREE_LIST) {
                 throw Exception(ErrorCode::CORRUPTED_FILE);
             }
 
             if (page->reserve_free_list_entry(val, data_page)) {
-                return _manager.get_page_accessor(data_page, PageAccessor::Mode::EXCLUSIVE);
+                return _manager.get_page(data_page, PageAccessor::Mode::EXCLUSIVE);
             }
 
             page_id = page->get_next_free_list_page();
             if (page_id == Page::INVALID_ID) {
-                PageAccessor new_data_page = _manager.create_page(Page::Type::DATA);
+                PageAccessor new_data_page = _manager.create_page(
+                    Page::Type::DATA,
+                    PageAccessor::Mode::EXCLUSIVE);
                 if (page->can_insert_free_list_entry()) {
                     page->insert_free_list_entry(
                         new_data_page->get_id(),
                         new_data_page->get_remaining_space());
                 } else {
-                    PageAccessor new_free_list_page = _manager.create_page(Page::Type::FREE_LIST);
+                    PageAccessor new_free_list_page = _manager.create_page(
+                        Page::Type::FREE_LIST,
+                        PageAccessor::Mode::EXCLUSIVE);
                     new_free_list_page->insert_free_list_entry(
                         new_data_page->get_id(),
                         new_data_page->get_remaining_space());
@@ -131,7 +133,7 @@ namespace diamond {
     bool StorageEngine::get_root_node_id(const Buffer& id, Page::ID& root_node_id) {
         Page::ID page_id = 1;
         while (page_id != Page::INVALID_ID) {
-            PageAccessor page = _manager.get_page_accessor(page_id, PageAccessor::Mode::SHARED);
+            PageAccessor page = _manager.get_page(page_id, PageAccessor::Mode::SHARED);
             if (page->get_root_node_id(id, root_node_id)) {
                 return true;
             }
@@ -145,17 +147,21 @@ namespace diamond {
     PageAccessor StorageEngine::create_root_node_page(const Buffer& id) {
         Page::ID page_id = 1;
         while (true) {
-            PageAccessor page = _manager.get_page_accessor(page_id, PageAccessor::Mode::EXCLUSIVE);
+            PageAccessor page = _manager.get_page(page_id, PageAccessor::Mode::EXCLUSIVE);
             page_id = page->get_next_roots_page();
             if (page_id != Page::INVALID_ID) continue;
-            PageAccessor root_page = _manager.create_page(Page::Type::LEAF_NODE, PageAccessor::Mode::SHARED);
+            PageAccessor root_page = _manager.create_page(
+                Page::Type::LEAF_NODE,
+                PageAccessor::Mode::SHARED);
             if (page->can_insert_root_node_id(id)) {
                 page->set_root_node_id(id, root_page->get_id());
                 _manager.write_page(page.page());
                 return root_page;
             }
 
-            PageAccessor new_roots_page = _manager.create_page(Page::Type::ROOTS);
+            PageAccessor new_roots_page = _manager.create_page(
+                Page::Type::ROOTS,
+                PageAccessor::Mode::EXCLUSIVE);
             new_roots_page->set_root_node_id(id, root_page->get_id());
             page->set_next_roots_page(new_roots_page->get_id());
             _manager.write_page(new_roots_page.page());

@@ -15,18 +15,32 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include "diamond/value_processors.h"
+#include "diamond/eviction_policy.h"
 
 namespace diamond {
 
-    SizeCalculator::SizeCalculator()
-        : _size(0) {}
+    Page::ID EvictionPolicy::evict() {
+        Page::ID to_evict = next();
+        while (to_evict != Page::INVALID_ID) {
+            if (_tracked_pages.at(to_evict)->usage_count() == 0) {
+                _tracked_pages.erase(to_evict);
+                remove(to_evict);
+                return to_evict;
+            }
 
-    size_t SizeCalculator::size() const {
-        return _size;
+            to_evict = next(to_evict);
+        }
+
+        return to_evict;
     }
 
-    Serializer::Serializer(Buffer& buffer)
-        : _writer(buffer) {}
+    void EvictionPolicy::track(const Page* page) {
+        Page::ID id = page->get_id();
+        if (_tracked_pages.find(id) != _tracked_pages.end()) {
+            throw std::logic_error("already tracking this page");
+        }
+        _tracked_pages.emplace(id, page);
+        add(id);
+    }
 
 } // namespace diamond

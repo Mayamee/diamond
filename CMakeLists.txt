@@ -29,21 +29,20 @@ include_directories(${Boost_INCLUDE_DIRS})
 
 add_library(diamond SHARED
     src/bg_page_writer.cpp
+    src/binary_archive.cpp
     src/buffer.cpp
-    src/db.cpp
-    src/eviction_strategy.cpp
+    src/eviction_policy.cpp
     src/exception.cpp
     src/file_storage.cpp
-    src/lru_eviction_strategy.cpp
+    src/lru_eviction_policy.cpp
     src/memory_storage.cpp
     src/page.cpp
     src/page_accessor.cpp
     src/page_manager.cpp
-    src/page_manager_partition.cpp
+    src/partitioned_page_manager.cpp
     src/storage.cpp
     src/storage_engine.cpp
-    src/sync_page_writer.cpp
-    src/value_processors.cpp)
+    src/sync_page_writer.cpp)
 
 target_link_libraries(diamond
     pthread
@@ -56,7 +55,7 @@ if (DIAMOND_BUILD_TESTS)
     add_executable(diamond_tests
         test/main.cpp
         test/page.cpp
-        test/page_manager.cpp)
+        test/partitioned_page_manager.cpp)
     target_link_libraries(diamond_tests
         diamond
         CONAN_PKG::gtest)

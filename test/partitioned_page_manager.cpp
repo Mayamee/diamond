@@ -19,9 +19,9 @@
 
 #include "diamond/exception.h"
 #include "diamond/memory_storage.h"
-#include "diamond/page_manager.h"
+#include "diamond/partitioned_page_manager.h"
 
-#include "mocks/eviction_strategy.h"
+#include "mocks/eviction_policy.h"
 #include "mocks/page_writer.h"
 #include "mocks/storage.h"
 
@@ -35,19 +35,20 @@ namespace {
         EXPECT_CALL(mock_page_writer_factory, create)
             .WillRepeatedly(::testing::Return(mock_page_writer));
 
-        MockEvictionStrategyFactory mock_eviction_strategy_factory;
-        std::shared_ptr<MockEvictionStrategy> mock_eviction_strategy =
-            std::make_shared<MockEvictionStrategy>();
-        EXPECT_CALL(mock_eviction_strategy_factory, create)
-            .WillRepeatedly(::testing::Return(mock_eviction_strategy));
+        MockEvictionPolicyFactory mock_eviction_policy_factory;
+        std::shared_ptr<MockEvictionPolicy> mock_eviction_policy =
+            std::make_shared<MockEvictionPolicy>();
+        EXPECT_CALL(mock_eviction_policy_factory, create)
+            .WillRepeatedly(::testing::Return(mock_eviction_policy));
 
-        diamond::PageManager manager(
+        diamond::PartitionedPageManager manager(
             mock_storage,
             mock_page_writer_factory,
-            mock_eviction_strategy_factory);
-        diamond::PageAccessor accessor =
-            manager.create_page(diamond::Page::Type::LEAF_NODE);
-        EXPECT_TRUE(manager.is_page_managed(accessor.page()->get_id()));
+            mock_eviction_policy_factory);
+        diamond::PageAccessor accessor = manager.create_page(
+            diamond::Page::Type::LEAF_NODE,
+            diamond::PageAccessor::Mode::SHARED);
+        EXPECT_TRUE(manager.is_page_managed(accessor->get_id()));
     }
 
     TEST(page_manager_tests, ensure_unmanaged_page_is_read_from_storage) {
@@ -63,20 +64,21 @@ namespace {
         EXPECT_CALL(mock_page_writer_factory, create)
             .WillRepeatedly(::testing::Return(mock_page_writer));
 
-        MockEvictionStrategyFactory mock_eviction_strategy_factory;
-        std::shared_ptr<MockEvictionStrategy> mock_eviction_strategy =
-            std::make_shared<MockEvictionStrategy>();
-        EXPECT_CALL(mock_eviction_strategy_factory, create)
-            .WillRepeatedly(::testing::Return(mock_eviction_strategy));
+        MockEvictionPolicyFactory mock_eviction_policy_factory;
+        std::shared_ptr<MockEvictionPolicy> mock_eviction_policy =
+            std::make_shared<MockEvictionPolicy>();
+        EXPECT_CALL(mock_eviction_policy_factory, create)
+            .WillRepeatedly(::testing::Return(mock_eviction_policy));
 
-        diamond::PageManager manager(
+        diamond::PartitionedPageManager manager(
             storage,
             mock_page_writer_factory,
-            mock_eviction_strategy_factory);
+            mock_eviction_policy_factory);
 
         EXPECT_FALSE(manager.is_page_managed(id));
-        diamond::PageAccessor accessor =
-            manager.get_page_accessor(id, diamond::PageAccessor::Mode::SHARED);
+        diamond::PageAccessor accessor = manager.get_page(
+            id,
+            diamond::PageAccessor::Mode::SHARED);
         EXPECT_TRUE(manager.is_page_managed(id));
     }
 
@@ -88,18 +90,18 @@ namespace {
         EXPECT_CALL(mock_page_writer_factory, create)
             .WillRepeatedly(::testing::Return(mock_page_writer));
 
-        MockEvictionStrategyFactory mock_eviction_strategy_factory;
-        std::shared_ptr<MockEvictionStrategy> mock_eviction_strategy =
-            std::make_shared<MockEvictionStrategy>();
-        EXPECT_CALL(mock_eviction_strategy_factory, create)
-            .WillRepeatedly(::testing::Return(mock_eviction_strategy));
+        MockEvictionPolicyFactory mock_eviction_policy_factory;
+        std::shared_ptr<MockEvictionPolicy> mock_eviction_policy =
+            std::make_shared<MockEvictionPolicy>();
+        EXPECT_CALL(mock_eviction_policy_factory, create)
+            .WillRepeatedly(::testing::Return(mock_eviction_policy));
 
-        diamond::PageManager manager(
+        diamond::PartitionedPageManager manager(
             mock_storage,
             mock_page_writer_factory,
-            mock_eviction_strategy_factory);
+            mock_eviction_policy_factory);
         EXPECT_THROW(
-            manager.get_page_accessor(1, diamond::PageAccessor::Mode::SHARED),
+            manager.get_page(1, diamond::PageAccessor::Mode::SHARED),
             diamond::Exception);
     }
 

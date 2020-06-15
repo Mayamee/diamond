@@ -18,11 +18,15 @@
 #ifndef _DIAMOND_DB_H
 #define _DIAMOND_DB_H
 
+#include "diamond/binary_archive.h"
 #include "diamond/storage_engine.h"
-#include "diamond/value_processors.h"
 
 namespace diamond {
 
+    template <
+        class TIArchive = BinaryIArchive,
+        class TOArchive = BinaryOArchive
+    >
     class Db {
     public:
         Db(StorageEngine& storage_engine);
@@ -40,28 +44,33 @@ namespace diamond {
         static std::string collection_name();
     };
 
+    template <class TIArchive, class TOArchive>
+    Db<TIArchive, TOArchive>::Db(StorageEngine& storage_engine)
+        : _storage_engine(storage_engine) {}
+
+    template <class TIArchive, class TOArchive>
     template <class T, class TKey>
-    T Db::get(TKey /*key*/) {
+    T Db<TIArchive, TOArchive>::get(TKey /*key*/) {
         return T();
     }
 
+    template <class TIArchive, class TOArchive>
     template <class T>
-    void Db::insert(T& record) {
-        Buffer key(record.key.size());
-        BufferWriter writer(key);
-        record.key.store(writer);
+    void Db<TIArchive, TOArchive>::insert(T& record) {
+        // Buffer key(record.key.size());
+        // BufferWriter writer(key);
+        // record.key.store(writer);
 
-        SizeCalculator size_calculator;
-        record.process_values(size_calculator);
-        Buffer value(size_calculator.size());
-        Serializer serializer(value);
-        record.process_values(serializer);
+        Buffer value;
+        TOArchive o_archive(value);
+        record.serialize(o_archive);
 
-        _storage_engine.insert(collection_name<T>(), std::move(key), std::move(value));
+        // _storage_engine.insert(collection_name<T>(), std::move(key), std::move(value));
     }
 
+    template <class TIArchive, class TOArchive>
     template <class T>
-    std::string Db::collection_name() {
+    std::string Db<TIArchive, TOArchive>::collection_name() {
         return boost::typeindex::type_id<T>().pretty_name();
     }
 

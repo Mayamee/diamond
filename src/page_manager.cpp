@@ -19,54 +19,11 @@
 
 namespace diamond {
 
-    PageManager::PageManager(
-            Storage& storage,
-            PageWriterFactory& page_writer_factory,
-            EvictionStrategyFactory& eviction_strategy_factory,
-            size_t num_partitions,
-            size_t max_num_pages_in_partition)
-            : _storage(storage),
-            _num_partitions(num_partitions),
-            _next_page_id(storage.size() / Page::SIZE + 1) {
-        for (size_t i = 0; i < _num_partitions; i++) {
-            _partitions.push_back(
-                std::make_unique<PageManagerPartition>(
-                    storage,
-                    page_writer_factory.create(),
-                    eviction_strategy_factory.create(),
-                    max_num_pages_in_partition
-                ));
-        }
-    }
+    PageManager::PageManager(Storage& storage)
+        : _storage(storage), 
+        _next_page_id(_storage.size() / Page::SIZE + 1) {}
 
-    PageAccessor PageManager::create_page(Page::Type type, PageAccessor::Mode access_mode) {
-        Page::ID id = next_page_id();
-        return get_partition(id)->create_page(id, type, access_mode);
-    }
-
-    PageAccessor PageManager::get_page_accessor(Page::ID id, PageAccessor::Mode access_mode) {
-        return get_partition(id)->get_page_accessor(id, access_mode);
-    }
-
-    void PageManager::write_page(const Page* page) {
-        get_partition(page->get_id())->write_page(page);
-    }
-
-    void PageManager::write_pages(const std::vector<Page*>& pages) {
-        for (const Page* page : pages) {
-            write_page(page);
-        }
-    }
-
-    bool PageManager::is_page_managed(Page::ID id) {
-        return get_partition(id)->is_page_managed(id);
-    }
-
-    Storage& PageManager::storage() {
-        return _storage;
-    }
-
-    const Storage& PageManager::storage() const {
+    Storage& PageManager::storage() const {
         return _storage;
     }
 

@@ -17,11 +17,11 @@
 
 #include "gmock/gmock.h"
 
-#include "diamond/eviction_strategy.h"
+#include "diamond/eviction_policy.h"
 
 namespace {
 
-    class MockEvictionStrategy : public diamond::EvictionStrategy {
+    class MockEvictionPolicy : public diamond::EvictionPolicy {
     public:
         MOCK_METHOD(void, update, (diamond::Page::ID id), (override));
         MOCK_METHOD(void, add, (diamond::Page::ID id), (override));
@@ -29,9 +29,9 @@ namespace {
         MOCK_METHOD(void, remove, (diamond::Page::ID id), (override));
     };
 
-    class MockEvictionStrategyFactory : public diamond::EvictionStrategyFactory {
+    class MockEvictionPolicyFactory : public diamond::EvictionPolicyFactory {
     public:
-        MOCK_METHOD(std::shared_ptr<diamond::EvictionStrategy>, create, (), (const override));
+        MOCK_METHOD(std::shared_ptr<diamond::EvictionPolicy>, create, (), (const override));
     };
 
 } // namespace 

@@ -15,67 +15,48 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _DIAMOND_VALUE_PROCESSORS_H
-#define _DIAMOND_VALUE_PROCESSORS_H
+#ifndef _DIAMOND_BINARY_ARCHIVE_H
+#define _DIAMOND_BINARY_ARCHIVE_H
 
 #include "diamond/buffer.h"
-#include "diamond/value.h"
+#include "diamond/serialization/default.h"
 
 namespace diamond {
 
-    class SizeCalculator final {
+    class BinaryIArchive final {
     public:
-        SizeCalculator();
+        BinaryIArchive(const Buffer& buffer);
 
         template <class T>
-        SizeCalculator& operator&(Value<T>& val);
-
-        size_t size() const;
-
-    private:
-        size_t _size;
-    };
-
-    class Deserializer final {
-    public:
-        Deserializer(Buffer& buffer);
-
-        template <class T>
-        Deserializer& operator&(Value<T>& val);
+        BinaryIArchive& operator&(T& val);
 
     private:
         BufferReader _reader;
     };
 
-    class Serializer final {
+    class BinaryOArchive final {
     public:
-        Serializer(Buffer& buffer);
+        BinaryOArchive(Buffer& buffer);
 
         template <class T>
-        Serializer& operator&(Value<T>& val);       
+        BinaryOArchive& operator&(T& val);       
 
     private:
         BufferWriter _writer;
     };
 
     template <class T>
-    SizeCalculator& SizeCalculator::operator&(Value<T>& val) {
-        _size += val.size();
+    BinaryIArchive& BinaryIArchive::operator&(T& val) {
+        // serialization::load(*this, val);
         return *this;
     }
 
     template <class T>
-    Deserializer& Deserializer::operator&(Value<T>& val) {
-        val.load(_reader);
-        return *this;
-    }
-
-    template <class T>
-    Serializer& Serializer::operator&(Value<T>& val) {
-        val.store(_writer);
+    BinaryOArchive& BinaryOArchive::operator&(T& val) {
+        // serialization::store(*this, val);
         return *this;
     }
 
 } // namespace diamond
 
-#endif // _DIAMOND_VALUE_PROCESSORS_H
+#endif // _DIAMOND_BINARY_ARCHIVE_H

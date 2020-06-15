@@ -25,7 +25,7 @@
 
 namespace diamond {
 
-    class PageManagerPartition;
+    class PageManager;
 
     class PageAccessor : noncopyable {
     public:
@@ -35,6 +35,7 @@ namespace diamond {
             UPGRADE
         };
 
+        PageAccessor(Page* page, Mode mode);
         PageAccessor(PageAccessor&&);
         ~PageAccessor();
 
@@ -59,10 +60,6 @@ namespace diamond {
         bool _locked;
         Mode _mode;
         Page* _page;
-
-        friend class PageManagerPartition;
-
-        PageAccessor(Page* page, Mode mode);
     };
 
 } // namespace diamond

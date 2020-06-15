@@ -15,11 +15,13 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include "diamond/db.h"
+#ifndef _DIAMOND_SERIALIZATION_DEFAULT_H
+#define _DIAMOND_SERIALIZATION_DEFAULT_H
 
 namespace diamond {
+namespace serialization {
 
-    Db::Db(StorageEngine& storage_engine)
-        : _storage_engine(storage_engine) {}
-
+} // namespace serialization
 } // namespace diamond
+
+#endif // _DIAMOND_SERIALIZATION_DEFAULT_H

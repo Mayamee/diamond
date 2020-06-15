@@ -19,6 +19,22 @@
 
 namespace diamond {
 
+    PageAccessor::PageAccessor(Page* page, Mode mode)
+            : _page(page) {
+        _page->_usage_count++;
+        switch (mode) {
+        case Mode::EXCLUSIVE:
+            lock();
+            break;
+        case Mode::SHARED:
+            lock_shared();
+            break;
+        case Mode::UPGRADE:
+            lock_upgrade();
+            break;
+        }
+    }
+
     PageAccessor::PageAccessor(PageAccessor&& other)
             : _locked(other._locked),
             _mode(other._mode),
@@ -97,22 +113,6 @@ namespace diamond {
 
     Page* PageAccessor::operator->() const {
         return _page;
-    }
-
-    PageAccessor::PageAccessor(Page* page, Mode mode)
-            : _page(page) {
-        _page->_usage_count++;
-        switch (mode) {
-        case Mode::EXCLUSIVE:
-            lock();
-            break;
-        case Mode::SHARED:
-            lock_shared();
-            break;
-        case Mode::UPGRADE:
-            lock_upgrade();
-            break;
-        }
     }
 
 } // namespace diamond

@@ -15,8 +15,8 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _DIAMOND_EVICTION_STRATEGY_H
-#define _DIAMOND_EVICTION_STRATEGY_H
+#ifndef _DIAMOND_EVICTION_POLICY_H
+#define _DIAMOND_EVICTION_POLICY_H
 
 #include <exception>
 #include <unordered_map>
@@ -25,7 +25,7 @@
 
 namespace diamond {
 
-    class EvictionStrategy {
+    class EvictionPolicy {
     public:
         Page::ID evict();
         virtual void update(Page::ID id) = 0;
@@ -43,11 +43,11 @@ namespace diamond {
         > _tracked_pages;
     };
 
-    class EvictionStrategyFactory {
+    class EvictionPolicyFactory {
     public:
-        virtual std::shared_ptr<EvictionStrategy> create() const = 0;
+        virtual std::shared_ptr<EvictionPolicy> create() const = 0;
     };
 
 } // namespace diamond
 
-#endif // _DIAMOND_EVICTION_STRATEGY_H
+#endif // _DIAMOND_EVICTION_POLICY_H

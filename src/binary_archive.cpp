@@ -15,47 +15,14 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _DIAMOND_VALUE_H
-#define _DIAMOND_VALUE_H
-
-#include <cstddef>
+#include "diamond/binary_archive.h"
 
 namespace diamond {
 
-    template <class T>
-    class Value {
-    public:
-        void load(BufferReader& reader);
-        void store(BufferWriter& writer);
-        size_t size() const;
+    BinaryIArchive::BinaryIArchive(const Buffer& buffer)
+        : _reader(buffer) {}
 
-        Value& operator=(const T& val);
-
-    protected:
-        T _val;
-    };
-
-    template <class T>
-    void Value<T>::load(BufferReader& reader) {
-        reader >> _val;
-    }
-
-    template <class T>
-    void Value<T>::store(BufferWriter& writer) {
-        writer << _val; 
-    }
-
-    template <class T>
-    size_t Value<T>::size() const {
-        return 0;
-    }
-
-    template <class T>
-    Value<T>& Value<T>::operator=(const T& val) {
-        _val = val;
-        return *this;
-    }
+    BinaryOArchive::BinaryOArchive(Buffer& buffer)
+        : _writer(buffer) {}
 
 } // namespace diamond
-
-#endif // _DIAMOND_VALUE_H

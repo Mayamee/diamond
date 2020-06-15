@@ -15,17 +15,17 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _DIAMOND_LRU_EVICTION_STRATEGY_H
-#define _DIAMOND_LRU_EVICTION_STRATEGY_H
+#ifndef _DIAMOND_LRU_EVICTION_POLICY_H
+#define _DIAMOND_LRU_EVICTION_POLICY_H
 
 #include <list>
 #include <unordered_map>
 
-#include "diamond/eviction_strategy.h"
+#include "diamond/eviction_policy.h"
 
 namespace diamond {
 
-    class LRUEvictionStrategy final : public EvictionStrategy {
+    class LRUEvictionPolicy final : public EvictionPolicy {
     public:
         void update(Page::ID id) override;
 
@@ -41,11 +41,11 @@ namespace diamond {
         void remove(Page::ID id) override;
     };
 
-    class LRUEvictionStrategyFactory final : public EvictionStrategyFactory {
+    class LRUEvictionPolicyFactory final : public EvictionPolicyFactory {
     public:
-        std::shared_ptr<EvictionStrategy> create() const override;
+        std::shared_ptr<EvictionPolicy> create() const override;
     };
 
 } // namespace diamond
 
-#endif // _DIAMOND_LRU_EVICTION_STRATEGY_H
+#endif // _DIAMOND_LRU_EVICTION_POLICY_H
