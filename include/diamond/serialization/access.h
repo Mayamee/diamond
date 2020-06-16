@@ -15,29 +15,24 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include "diamond/binary_archive.h"
+#ifndef _DIAMOND_SERIALIZATION_ACCESS_H
+#define _DIAMOND_SERIALIZATION_ACCESS_H
 
 namespace diamond {
+namespace serialization {
 
-    BinaryIArchive::BinaryIArchive(const Buffer& buffer)
-        : _reader(buffer) {}
+    class Access {
+    public:
+        template <class T, class Archive>
+        static void serialize(T& val, Archive& archive);
+    };
 
-    template <>
-    void BinaryIArchive::load_primitive(std::string& str) {
-        size_t s;
-        _reader >> s;
-        char c[s];
-        _reader.read(c, s);
-        str = c;
+    template <class T, class Archive>
+    void Access::serialize(T& val, Archive& archive) {
+        val.serialize(archive);
     }
 
-    BinaryOArchive::BinaryOArchive(Buffer& buffer)
-        : _writer(buffer) {}
-
-    template <>
-    void BinaryOArchive::store_primitive(std::string& str) {
-        _writer << str.size();
-        _writer << str;
-    }
-
+} // namespace serialization
 } // namespace diamond
+
+#endif // _DIAMOND_SERIALIZATION_ACCESS_H

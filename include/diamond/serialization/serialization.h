@@ -15,13 +15,20 @@
 **  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#ifndef _DIAMOND_SERIALIZATION_DEFAULT_H
-#define _DIAMOND_SERIALIZATION_DEFAULT_H
+#ifndef _DIAMOND_SERIALIZATION_SERIALIZATION_H
+#define _DIAMOND_SERIALIZATION_SERIALIZATION_H
+
+#include "diamond/serialization/access.h"
 
 namespace diamond {
 namespace serialization {
 
+    template <class T, class Archive>
+    void serialize(T& val, Archive& archive) {
+        Access::serialize(val, archive);
+    }
+
 } // namespace serialization
 } // namespace diamond
 
-#endif // _DIAMOND_SERIALIZATION_DEFAULT_H
+#endif // _DIAMOND_SERIALIZATION_SERIALIZATION_H

@@ -23,13 +23,16 @@
 #include "diamond/file_storage.h"
 #include "diamond/partitioned_page_manager.h"
 
-struct Person {
-    std::string key;
+class Person {
+public:
     std::string first_name;
     std::string last_name;
     std::string gender;
     uint8_t height;
     uint16_t weight;
+
+private:
+    friend class diamond::serialization::Access;
 
     template <class Archive>
     void serialize(Archive& archive) {
@@ -53,20 +56,20 @@ int main() {
         eviction_policy_factory);
     diamond::StorageEngine engine(manager);
     diamond::Db db(engine);
+    std::string key = "zach-perkitny";
     {
         Person me;
-        me.key = "zach-perkitny";
         me.first_name = "zach";
         me.last_name = "perkitny";
         me.gender = "male";
         me.height = 70;
         me.weight = 155;
 
-        db.insert<Person>(me);
+        db.insert<Person>(key, me);
     }
 
     {
-        Person me = db.get<Person>("zach-perkitny");
+        Person me = db.get<Person>(key);
     }
 
     return 0;

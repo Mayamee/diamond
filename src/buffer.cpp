@@ -69,6 +69,15 @@ namespace diamond {
         return _size;
     }
 
+    void Buffer::resize(size_t s) {
+        char* new_buffer = new char[s];
+        if (_buffer) {
+            std::memcpy(new_buffer, _buffer, (_size > s) ? s : _size);
+        }
+        _buffer = new_buffer;
+        _size = s;
+    }
+
     char* Buffer::buffer() {
         return _buffer;
     }
@@ -170,6 +179,12 @@ namespace diamond {
     }
 
     void BufferWriter::write(const void* val, size_t size) {
+        size_t buffer_size = _buffer.size();
+        if (!buffer_size) buffer_size = 1;
+        while (_ptr + size > buffer_size) {
+            buffer_size *= 2;
+        }
+        _buffer.resize(buffer_size);
         std::memcpy(_buffer.buffer() + _ptr, val, size);
         _ptr += size;
     }

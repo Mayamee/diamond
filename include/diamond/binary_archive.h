@@ -19,42 +19,44 @@
 #define _DIAMOND_BINARY_ARCHIVE_H
 
 #include "diamond/buffer.h"
-#include "diamond/serialization/default.h"
+#include "diamond/base_archive.h"
 
 namespace diamond {
 
-    class BinaryIArchive final {
+    class BinaryIArchive final : public BaseIArchive<BinaryIArchive> {
     public:
         BinaryIArchive(const Buffer& buffer);
 
-        template <class T>
-        BinaryIArchive& operator&(T& val);
-
     private:
         BufferReader _reader;
+
+        friend class BaseIArchive<BinaryIArchive>;
+
+        template <class T>
+        void load_primitive(T& val);
     };
 
-    class BinaryOArchive final {
+    class BinaryOArchive final : public BaseOArchive<BinaryOArchive> {
     public:
         BinaryOArchive(Buffer& buffer);
 
-        template <class T>
-        BinaryOArchive& operator&(T& val);       
-
     private:
         BufferWriter _writer;
+
+        friend class BaseOArchive<BinaryOArchive>;
+
+        template <class T>
+        void store_primitive(T& val);
     };
 
     template <class T>
-    BinaryIArchive& BinaryIArchive::operator&(T& val) {
-        // serialization::load(*this, val);
-        return *this;
+    void BinaryIArchive::load_primitive(T& val) {
+        _reader >> val;
     }
 
     template <class T>
-    BinaryOArchive& BinaryOArchive::operator&(T& val) {
-        // serialization::store(*this, val);
-        return *this;
+    void BinaryOArchive::store_primitive(T& val) {
+        _writer << val;
     }
 
 } // namespace diamond

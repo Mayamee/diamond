@@ -31,11 +31,11 @@ namespace diamond {
     public:
         Db(StorageEngine& storage_engine);
 
-        template <class T, class TKey>
-        T get(TKey key);
+        template <class T>
+        T get(const Buffer& key);
 
         template <class T>
-        void insert(T& record);
+        void insert(Buffer key, T& record);
 
     private:
         StorageEngine& _storage_engine;
@@ -49,23 +49,18 @@ namespace diamond {
         : _storage_engine(storage_engine) {}
 
     template <class TIArchive, class TOArchive>
-    template <class T, class TKey>
-    T Db<TIArchive, TOArchive>::get(TKey /*key*/) {
+    template <class T>
+    T Db<TIArchive, TOArchive>::get(const Buffer& key) {
         return T();
     }
 
     template <class TIArchive, class TOArchive>
     template <class T>
-    void Db<TIArchive, TOArchive>::insert(T& record) {
-        // Buffer key(record.key.size());
-        // BufferWriter writer(key);
-        // record.key.store(writer);
-
+    void Db<TIArchive, TOArchive>::insert(Buffer key, T& record) {;
         Buffer value;
         TOArchive o_archive(value);
-        record.serialize(o_archive);
-
-        // _storage_engine.insert(collection_name<T>(), std::move(key), std::move(value));
+        o_archive << record;
+        _storage_engine.insert(collection_name<T>(), std::move(key), std::move(value));
     }
 
     template <class TIArchive, class TOArchive>
