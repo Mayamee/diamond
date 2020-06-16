@@ -51,7 +51,11 @@ namespace diamond {
     template <class TIArchive, class TOArchive>
     template <class T>
     T Db<TIArchive, TOArchive>::get(const Buffer& key) {
-        return T();
+        Buffer value = _storage_engine.get(collection_name<T>(), key);
+        T obj;
+        TIArchive i_archive(value);
+        i_archive >> obj;
+        return obj;
     }
 
     template <class TIArchive, class TOArchive>

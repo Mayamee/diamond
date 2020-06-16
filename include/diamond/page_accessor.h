@@ -39,7 +39,7 @@ namespace diamond {
         PageAccessor(PageAccessor&&);
         ~PageAccessor();
 
-        Page* page() const;
+        Page* instance() const;
 
         void lock();
         void unlock();

@@ -70,6 +70,12 @@ int main() {
 
     {
         Person me = db.get<Person>(key);
+        std::cout << 
+            me.first_name << " " << 
+            me.last_name << " " <<
+            me.gender << " " <<
+            +me.height << " " <<
+            me.weight << " " << std::endl;
     }
 
     return 0;

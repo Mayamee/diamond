@@ -46,6 +46,9 @@ namespace diamond {
         void load(T& val);
 
         template <class T>
+        Derived& operator>>(T& val);
+
+        template <class T>
         Derived& operator&(T& val);
     };
 
@@ -103,9 +106,15 @@ namespace diamond {
 
     template <class Derived>
     template <class T>
-    Derived& BaseIArchive<Derived>::operator&(T& val) {
+    Derived& BaseIArchive<Derived>::operator>>(T& val) {
         load<T>(val);
         return static_cast<Derived&>(*this);
+    }
+
+    template <class Derived>
+    template <class T>
+    Derived& BaseIArchive<Derived>::operator&(T& val) {
+        return *this >> val;
     }
 
     template <class Derived>

@@ -61,7 +61,7 @@ namespace diamond {
         _page->_usage_count--;
     }
 
-    Page* PageAccessor::page() const {
+    Page* PageAccessor::instance() const {
         return _page;
     }
 

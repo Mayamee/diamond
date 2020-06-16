@@ -54,10 +54,16 @@ namespace diamond {
         _reader >> val;
     }
 
+    template <>
+    void BinaryIArchive::load_primitive(std::string& str);
+
     template <class T>
     void BinaryOArchive::store_primitive(T& val) {
         _writer << val;
     }
+
+    template <>
+    void BinaryOArchive::store_primitive(std::string& str);
 
 } // namespace diamond
 

@@ -36,37 +36,35 @@ namespace diamond {
             throw Exception(ErrorCode::ENTRY_NOT_FOUND);
         }
         const Page::LeafNodeEntry& entry = *iter;
-        PageAccessor data_accessor = _manager.get_page(entry.data_id(), PageAccessor::Mode::SHARED);
-        return Buffer(data_accessor->get_data_entry(entry.data_index()).data());      
+        PageAccessor data_page = _manager.get_page(entry.data_id(), PageAccessor::Mode::SHARED);
+        return Buffer(data_page->get_data_entry(entry.data_index()).data());      
     }
 
     void StorageEngine::insert(const Buffer& id, Buffer key, Buffer val) {
         // TODO: Figure out locking
-        // PageAccessor accessor = get_leaf_page(id, key);
-        // const Page& page = accessor.page();
-        // LeafNodeEntryListIterator iter = page->find_leaf_node_entry(key, _compare_func);
-        // if (iter != page->leaf_node_entries_end()) {
-        //     throw Exception(ErrorCode::DUPLICATE_ENTRY_KEY);
-        // }
+        PageAccessor page = get_leaf_page(id, key);
+        Page::LeafNodeEntryListIterator iter = page->find_leaf_node_entry(key, _compare_func);
+        if (iter != page->leaf_node_entries_end()) {
+            throw Exception(ErrorCode::DUPLICATE_ENTRY_KEY);
+        }
 
-        // Page::ID data_page_id;
-        // size_t data_page_index;
-        // {
-        //     PageAccessor data_accessor = get_free_data_page(val);
-        //     const Page& data_page = data_accessor.page();
-        //     data_page_id = data_page->get_id();
-        //     data_page_index = data_page->insert_data_entry(val);
-        //     _manager.write_page(data_page);
-        // }
+        Page::ID data_page_id;
+        size_t data_page_index;
+        {
+            PageAccessor data_page = get_free_data_page(val);
+            data_page_id = data_page->get_id();
+            data_page_index = data_page->insert_data_entry(val);
+            _manager.write_page(data_page.instance());
+        }
 
-        // if (page->can_insert_leaf_node_entry(key)) {
-        //     page->insert_leaf_node_entry(key, data_page_id, data_page_index);
-        //     _manager.write_page(page);
-        //     return;
-        // }
+        if (page->can_insert_leaf_node_entry(key)) {
+            page->insert_leaf_node_entry(key, data_page_id, data_page_index);
+            _manager.write_page(page.instance());
+            return;
+        }
 
         // PageAccessor leaf_accessor = _manager.create_page(Page::Type::LEAF_NODE);
-        // page->split_leaf_node_entries(leaf_accessor.page());
+        // page->split_leaf_node_entries(leaf_accessor.instance());
     }
 
     PageAccessor StorageEngine::get_leaf_page(const Buffer& id, const Buffer& key) {
@@ -121,9 +119,9 @@ namespace diamond {
                         new_data_page->get_id(),
                         new_data_page->get_remaining_space());
                     page->set_next_free_list_page(new_free_list_page->get_id());
-                    _manager.write_page(new_free_list_page.page());
+                    _manager.write_page(new_free_list_page.instance());
                 }
-                _manager.write_page(page.page());
+                _manager.write_page(page.instance());
 
                 return new_data_page;
             }
@@ -155,7 +153,7 @@ namespace diamond {
                 PageAccessor::Mode::SHARED);
             if (page->can_insert_root_node_id(id)) {
                 page->set_root_node_id(id, root_page->get_id());
-                _manager.write_page(page.page());
+                _manager.write_page(page.instance());
                 return root_page;
             }
 
@@ -164,8 +162,8 @@ namespace diamond {
                 PageAccessor::Mode::EXCLUSIVE);
             new_roots_page->set_root_node_id(id, root_page->get_id());
             page->set_next_roots_page(new_roots_page->get_id());
-            _manager.write_page(new_roots_page.page());
-            _manager.write_page(page.page());
+            _manager.write_page(new_roots_page.instance());
+            _manager.write_page(page.instance());
 
             return root_page;
         }
