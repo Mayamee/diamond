@@ -44,6 +44,12 @@ private:
     }
 };
 
+std::vector<Person> people = {
+    Person{.first_name="Zach", .last_name="Perkitny", .gender="male", .height=70, .weight=155},
+    Person{.first_name="Bob", .last_name="Doe", .gender="male", .height=73, .weight=180},
+    Person{.first_name="Jane", .last_name="Doe", .gender="female", .height=62, .weight=130}
+};
+
 int main() {
 
     diamond::FileStorage storage("data");
@@ -56,27 +62,23 @@ int main() {
         eviction_policy_factory);
     diamond::StorageEngine engine(manager);
     diamond::Db db(engine);
-    std::string key = "zach-perkitny";
-    {
-        Person me;
-        me.first_name = "zach";
-        me.last_name = "perkitny";
-        me.gender = "male";
-        me.height = 70;
-        me.weight = 155;
 
-        db.insert<Person>(key, me);
+    for (Person& person : people) {
+        std::string key = person.first_name + " " + person.last_name;
+        if (!db.exists<Person>(key)) {
+            std::cout << key << " does not exist, inserting..." << std::endl;
+            db.insert<Person>(key, person);
+        } else {
+            std::cout << key << " already exists." << std::endl;
+        }
     }
 
-    {
-        Person me = db.get<Person>(key);
-        std::cout << 
-            me.first_name << " " << 
-            me.last_name << " " <<
-            me.gender << " " <<
-            +me.height << " " <<
-            me.weight << " " << std::endl;
-    }
+    std::cout << "people count: " << db.count<Person>() << std::endl;
+
+    // diamond::Db::Query query = db.query()
+    //     .where()
+    //     .top(5);
+    // diamond::Db::QueryResult result = query.execute();
 
     return 0;
 }

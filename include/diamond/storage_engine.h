@@ -20,23 +20,59 @@
 
 #include "diamond/buffer.h"
 #include "diamond/page_manager.h"
+#include "diamond/utility.h"
 
 namespace diamond {
 
     class StorageEngine {
     public:
-        StorageEngine(
-            PageManager& page_manager,
-            Page::Compare compare_func = &Page::default_compare);
+        class Iterator : noncopyable {
+        public:
+            ~Iterator();
 
-        Buffer get(const Buffer& id, const Buffer& key);
-        void insert(const Buffer& id, Buffer key, Buffer val);
+            void next();
+
+            Buffer key();
+            Buffer val();
+
+            bool end() const;
+
+        private:
+            friend class StorageEngine;
+
+            PageManager& _manager;
+
+            struct LeafPageIterator {
+                PageAccessor page;
+                Page::LeafNodeEntryListIterator iter;
+            };
+            LeafPageIterator* _leaf_page_iterator;
+
+            Iterator(PageManager& manager, PageAccessor page);
+        };
+
+        StorageEngine(PageManager& page_manager);
+
+        uint64_t count(const Buffer& id);
+        bool exists(
+            const Buffer& id,
+            const Buffer& key,
+            Page::Compare compare_func = &Page::default_compare);
+        Buffer get(
+            const Buffer& id,
+            const Buffer& key,
+            Page::Compare compare_func = &Page::default_compare);
+        void insert(
+            const Buffer& id,
+            Buffer key,
+            Buffer val,
+            Page::Compare compare_func = &Page::default_compare);
+        Iterator get_iterator(const Buffer& id);
 
     private:
         PageManager& _manager;
-        Page::Compare _compare_func;
 
-        PageAccessor get_leaf_page(const Buffer& id, const Buffer& key);
+        PageAccessor get_leaf_page(const Buffer& id, const Buffer& key, Page::Compare compare_func);
         PageAccessor get_free_data_page(const Buffer& val);
         bool get_root_node_id(const Buffer& id, Page::ID& root_node_id);
         PageAccessor create_root_node_page(const Buffer& id);

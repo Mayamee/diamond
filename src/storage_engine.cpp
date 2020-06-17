@@ -20,18 +20,48 @@
 
 namespace diamond {
 
-    StorageEngine::StorageEngine(PageManager& page_manager, Page::Compare compare_func)
-            : _manager(page_manager),
-            _compare_func(compare_func) {
+    StorageEngine::StorageEngine(PageManager& page_manager)
+            : _manager(page_manager) {
         if (_manager.storage().size() == 0) {
             _manager.create_page(Page::Type::ROOTS, PageAccessor::Mode::SHARED);
             _manager.create_page(Page::Type::FREE_LIST, PageAccessor::Mode::SHARED);
         }
     }
 
-    Buffer StorageEngine::get(const Buffer& id, const Buffer& key) {
-        PageAccessor page = get_leaf_page(id, key);
-        Page::LeafNodeEntryListIterator iter = page->find_leaf_node_entry(key, _compare_func);
+    uint64_t StorageEngine::count(const Buffer& id) {
+        Page::ID page_id;
+        if (!get_root_node_id(id, page_id)) {
+            return 0;
+        }
+
+        uint64_t count = 0;
+        while (page_id) {
+            PageAccessor page = _manager.get_page(page_id, PageAccessor::Mode::SHARED);
+            switch (page->get_type()) {
+            case Page::Type::INTERNAL_NODE:
+                page_id = page->get_internal_node_entry(0).next_node_id();
+                break;
+            case Page::Type::LEAF_NODE:
+                count += page->get_num_leaf_node_entries();
+                page_id = page->get_next_leaf_node_page();
+                break;
+            default:
+                throw Exception(ErrorCode::CORRUPTED_FILE);
+            }
+        }
+
+        return count;
+    }
+
+    bool StorageEngine::exists(const Buffer& id, const Buffer& key, Page::Compare compare_func) {
+        PageAccessor page = get_leaf_page(id, key, compare_func);
+        Page::LeafNodeEntryListIterator iter = page->find_leaf_node_entry(key, compare_func);
+        return iter != page->leaf_node_entries_end();
+    }
+
+    Buffer StorageEngine::get(const Buffer& id, const Buffer& key, Page::Compare compare_func) {
+        PageAccessor page = get_leaf_page(id, key, compare_func);
+        Page::LeafNodeEntryListIterator iter = page->find_leaf_node_entry(key, compare_func);
         if (iter == page->leaf_node_entries_end()) {
             throw Exception(ErrorCode::ENTRY_NOT_FOUND);
         }
@@ -40,10 +70,10 @@ namespace diamond {
         return Buffer(data_page->get_data_entry(entry.data_index()).data());      
     }
 
-    void StorageEngine::insert(const Buffer& id, Buffer key, Buffer val) {
+    void StorageEngine::insert(const Buffer& id, Buffer key, Buffer val, Page::Compare compare_func) {
         // TODO: Figure out locking
-        PageAccessor page = get_leaf_page(id, key);
-        Page::LeafNodeEntryListIterator iter = page->find_leaf_node_entry(key, _compare_func);
+        PageAccessor page = get_leaf_page(id, key, compare_func);
+        Page::LeafNodeEntryListIterator iter = page->find_leaf_node_entry(key, compare_func);
         if (iter != page->leaf_node_entries_end()) {
             throw Exception(ErrorCode::DUPLICATE_ENTRY_KEY);
         }
@@ -67,7 +97,27 @@ namespace diamond {
         // page->split_leaf_node_entries(leaf_accessor.instance());
     }
 
-    PageAccessor StorageEngine::get_leaf_page(const Buffer& id, const Buffer& key) {
+    StorageEngine::Iterator StorageEngine::get_iterator(const Buffer& id) {
+        Page::ID page_id;
+        if (!get_root_node_id(id, page_id)) {
+            return Iterator(_manager, create_root_node_page(id));
+        }
+
+        while (true) {
+            PageAccessor page = _manager.get_page(page_id, PageAccessor::Mode::SHARED);
+            switch (page->get_type()) {
+            case Page::Type::INTERNAL_NODE:
+                page_id = page->get_internal_node_entry(0).next_node_id();
+                break;
+            case Page::Type::LEAF_NODE:
+                return Iterator(_manager, std::move(page));
+            default:
+                throw Exception(ErrorCode::CORRUPTED_FILE);
+            }
+        }
+    }
+
+    PageAccessor StorageEngine::get_leaf_page(const Buffer& id, const Buffer& key, Page::Compare compare_func) {
         Page::ID page_id;
         if (!get_root_node_id(id, page_id)) {
             return create_root_node_page(id);
@@ -77,7 +127,7 @@ namespace diamond {
             Page::Type type = page->get_type();
             switch (type) {
             case Page::Type::INTERNAL_NODE: {
-                size_t i = page->search_internal_node_entries(key, _compare_func);
+                size_t i = page->search_internal_node_entries(key, compare_func);
                 page_id = page->get_internal_node_entry(i).next_node_id();
                 break;
             }
@@ -168,5 +218,57 @@ namespace diamond {
             return root_page;
         }
     }
+
+    StorageEngine::Iterator::~Iterator() {
+        if (_leaf_page_iterator) {
+            delete _leaf_page_iterator;
+        }
+    }
+
+    void StorageEngine::Iterator::next() {
+        if (++_leaf_page_iterator->iter != 
+                _leaf_page_iterator->page->leaf_node_entries_end()) return;
+        if (_leaf_page_iterator->page->get_next_leaf_node_page() == Page::INVALID_ID) {
+            delete _leaf_page_iterator;
+            _leaf_page_iterator = nullptr;
+            return;
+        }
+        PageAccessor next_page = _manager.get_page(
+            _leaf_page_iterator->page->get_next_leaf_node_page(),
+            PageAccessor::Mode::SHARED);
+        if (next_page->get_type() != Page::Type::LEAF_NODE) {
+            throw Exception(ErrorCode::CORRUPTED_FILE);
+        }
+        LeafPageIterator* new_leaf_page_iterator = new LeafPageIterator{
+            .page = std::move(next_page),
+            .iter = next_page->leaf_node_entries_begin()
+        };
+        delete _leaf_page_iterator;
+        _leaf_page_iterator = new_leaf_page_iterator;
+    }
+
+    Buffer StorageEngine::Iterator::key() {
+        Page::LeafNodeEntry entry = *(_leaf_page_iterator->iter);
+        return entry.key();
+    }
+
+    Buffer StorageEngine::Iterator::val() {
+        Page::LeafNodeEntry entry = *(_leaf_page_iterator->iter);
+        PageAccessor data_page = _manager.get_page(
+            entry.data_id(),
+            PageAccessor::Mode::SHARED);
+        return data_page->get_data_entry(entry.data_index()).data();
+    }
+
+    bool StorageEngine::Iterator::end() const {
+        return _leaf_page_iterator == nullptr;
+    }
+
+    StorageEngine::Iterator::Iterator(PageManager& manager, PageAccessor page) 
+        : _manager(manager),
+        _leaf_page_iterator(new LeafPageIterator{
+            .page = std::move(page),
+            .iter = page->leaf_node_entries_begin()
+        }) {}
 
 } // namespace diamond

@@ -29,13 +29,34 @@ namespace diamond {
     >
     class Db {
     public:
+        template <class T>
+        class Query {
+        public:
+            Query& where();
+            Query& top(uint64_t n);
+        };
+
+        class QueryResult {
+        public:
+
+        };
+
         Db(StorageEngine& storage_engine);
+
+        template <class T>
+        bool exists(const Buffer& key);
+
+        template <class T>
+        uint64_t count();
 
         template <class T>
         T get(const Buffer& key);
 
         template <class T>
         void insert(Buffer key, T& record);
+
+        template <class T>
+        Query<T>& query();
 
     private:
         StorageEngine& _storage_engine;
@@ -47,6 +68,18 @@ namespace diamond {
     template <class TIArchive, class TOArchive>
     Db<TIArchive, TOArchive>::Db(StorageEngine& storage_engine)
         : _storage_engine(storage_engine) {}
+
+    template <class TIArchive, class TOArchive>
+    template <class T>
+    uint64_t Db<TIArchive, TOArchive>::count() {
+        return _storage_engine.count(collection_name<T>());
+    }
+
+    template <class TIArchive, class TOArchive>
+    template <class T>
+    bool Db<TIArchive, TOArchive>::exists(const Buffer& key) {
+        return _storage_engine.exists(collection_name<T>(), key);
+    }
 
     template <class TIArchive, class TOArchive>
     template <class T>
