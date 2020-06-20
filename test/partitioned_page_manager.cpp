@@ -46,8 +46,7 @@ namespace {
             mock_page_writer_factory,
             mock_eviction_policy_factory);
         diamond::PageAccessor accessor = manager.create_page(
-            diamond::Page::Type::LEAF_NODE,
-            diamond::PageAccessor::Mode::SHARED);
+            diamond::Page::Type::LEAF_NODE);
         EXPECT_TRUE(manager.is_page_managed(accessor->get_id()));
     }
 
@@ -76,9 +75,7 @@ namespace {
             mock_eviction_policy_factory);
 
         EXPECT_FALSE(manager.is_page_managed(id));
-        diamond::PageAccessor accessor = manager.get_page(
-            id,
-            diamond::PageAccessor::Mode::SHARED);
+        diamond::PageAccessor accessor = manager.get_page(id);
         EXPECT_TRUE(manager.is_page_managed(id));
     }
 
@@ -100,9 +97,7 @@ namespace {
             mock_storage,
             mock_page_writer_factory,
             mock_eviction_policy_factory);
-        EXPECT_THROW(
-            manager.get_page(1, diamond::PageAccessor::Mode::SHARED),
-            diamond::Exception);
+        EXPECT_THROW(manager.get_page(1), diamond::Exception);
     }
 
 } // namespace

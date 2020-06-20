@@ -25,18 +25,11 @@
 
 namespace diamond {
 
-    class PageManager;
-
-    class PageAccessor : noncopyable {
+    class PageAccessor {
     public:
-        enum class Mode {
-            EXCLUSIVE,
-            SHARED,
-            UPGRADE
-        };
-
-        PageAccessor(Page* page, Mode mode);
-        PageAccessor(PageAccessor&&);
+        PageAccessor(Page* page);
+        PageAccessor(const PageAccessor& other);
+        PageAccessor(PageAccessor&& other);
         ~PageAccessor();
 
         Page* instance() const;
@@ -47,19 +40,36 @@ namespace diamond {
         void lock_shared();
         void unlock_shared();
 
-        void lock_upgrade();
-        void unlock_upgrade();
-        void upgrade_lock();
-
-        bool locked() const;
-        Mode mode() const;
-
         Page* operator->() const;
 
     private:
-        bool _locked;
-        Mode _mode;
         Page* _page;
+    };
+
+    class SharedPageLock {
+    public:
+        SharedPageLock(PageAccessor& page);
+        ~SharedPageLock();
+
+        void lock();
+        void unlock();
+
+    private:
+        PageAccessor& _page;
+        bool _locked;
+    };
+
+    class UniquePageLock {
+    public:
+        UniquePageLock(PageAccessor& page);
+        ~UniquePageLock();
+
+        void lock();
+        void unlock();
+
+    private:
+        PageAccessor& _page;
+        bool _locked;
     };
 
 } // namespace diamond

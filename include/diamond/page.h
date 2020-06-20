@@ -34,11 +34,13 @@
 namespace diamond {
 
     class PageAccessor;
+    class SharedPageLock;
+    class UniquePageLock;
 
     class Page : boost::noncopyable {
     public:
         using ID = uint64_t;
-        using Compare = std::function<size_t(const Buffer&, const Buffer&)>;
+        using Compare = std::function<int(const Buffer&, const Buffer&)>;
 
         static const ID INVALID_ID;
 
@@ -114,6 +116,8 @@ namespace diamond {
             size_t _data_index;
         };
 
+        using InternalNodeEntryList = std::list<InternalNodeEntry>;
+        using InternalNodeEntryListIterator = InternalNodeEntryList::iterator;
         using LeafNodeEntryList = std::list<LeafNodeEntry>;
         using LeafNodeEntryListIterator = LeafNodeEntryList::iterator;
         using RootsMap = std::unordered_map<
@@ -124,7 +128,7 @@ namespace diamond {
         >;
         using RootsMapIterator = RootsMap::iterator;
 
-        static size_t default_compare(const Buffer& b0, const Buffer& b1);
+        static int default_compare(const Buffer& b0, const Buffer& b1);
         static uint64_t file_pos_for_id(ID id);
         static Page* from_storage(ID id, Storage& storage);
         static Page* new_page(ID id, Type type);
@@ -158,19 +162,31 @@ namespace diamond {
         bool can_insert_free_list_entry();
 
         size_t get_num_internal_node_entries() const;
-        const std::vector<InternalNodeEntry>* get_internal_node_entries() const;
-        const InternalNodeEntry& get_internal_node_entry(size_t i) const;
-        size_t search_internal_node_entries(const Buffer& key, Compare compare) const;
-        size_t insert_internal_node_entry(Buffer key, ID next_node_id);
+        const InternalNodeEntryList* get_internal_node_entries() const;
+        InternalNodeEntryListIterator search_internal_node_entries(
+            const Buffer& key,
+            Compare compare = &default_compare) const;
+        InternalNodeEntryListIterator internal_node_entries_begin() const;
+        InternalNodeEntryListIterator internal_node_entries_end() const;
+        void insert_internal_node_entry(
+            Buffer key,
+            ID next_node_id,
+            Compare compare = &default_compare);
         bool can_insert_internal_node_entry(const Buffer& key) const;
 
         ID get_next_leaf_node_page() const;
         size_t get_num_leaf_node_entries() const;
         const LeafNodeEntryList* get_leaf_node_entries() const;
-        LeafNodeEntryListIterator find_leaf_node_entry(const Buffer& key, Compare compare) const;
+        LeafNodeEntryListIterator find_leaf_node_entry(
+            const Buffer& key,
+            Compare compare = &default_compare) const;
         LeafNodeEntryListIterator leaf_node_entries_begin() const;
         LeafNodeEntryListIterator leaf_node_entries_end() const;
-        size_t insert_leaf_node_entry(Buffer key, ID data_id, size_t data_index);
+        void insert_leaf_node_entry(
+            Buffer key,
+            ID data_id,
+            size_t data_index,
+            Compare compare = &default_compare);
         bool can_insert_leaf_node_entry(const Buffer& key) const;
         void split_leaf_node_entries(Page* other);
 
@@ -186,6 +202,8 @@ namespace diamond {
 
     private:
         friend class PageAccessor;
+        friend class SharedPageLock;
+        friend class UniquePageLock;
 
         ID _id;
         Type _type;
@@ -196,7 +214,7 @@ namespace diamond {
                 std::vector<FreeListEntry>* entries;
                 ID next;
             } _free_list;
-            std::vector<InternalNodeEntry>* _internal_node_entries;
+            InternalNodeEntryList* _internal_node_entries;
             struct {
                 LeafNodeEntryList* entries;
                 ID next;

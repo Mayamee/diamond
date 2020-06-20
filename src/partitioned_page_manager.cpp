@@ -39,13 +39,13 @@ namespace diamond {
         }
     }
 
-    PageAccessor PartitionedPageManager::create_page(Page::Type type, PageAccessor::Mode access_mode) {
+    PageAccessor PartitionedPageManager::create_page(Page::Type type) {
         Page::ID id = _next_page_id++;
-        return get_partition(id)->create_page(id, type, access_mode);
+        return get_partition(id)->create_page(id, type);
     }
 
-    PageAccessor PartitionedPageManager::get_page(Page::ID id, PageAccessor::Mode access_mode) {
-        return get_partition(id)->get_page(id, access_mode);
+    PageAccessor PartitionedPageManager::get_page(Page::ID id) {
+        return get_partition(id)->get_page(id);
     }
 
     void PartitionedPageManager::write_page(const Page* page) {
@@ -72,34 +72,32 @@ namespace diamond {
         }
     }
 
-    PageAccessor PartitionedPageManager::Partition::create_page(Page::ID id, Page::Type type, PageAccessor::Mode access_mode) {
-        Page* page;
-        {
-            boost::lock_guard<boost::mutex> lock(_mutex);
-            if (_pages.find(id) != _pages.end()) {
-                throw std::logic_error("page with the provided id already exists");
-            }
-            page = Page::new_page(id, type);
-            add_page(page);
-            _page_writer->write(page);
+    PageAccessor PartitionedPageManager::Partition::create_page(Page::ID id, Page::Type type) {
+        boost::lock_guard<boost::mutex> lock(_mutex);
+        if (_pages.find(id) != _pages.end()) {
+            throw std::logic_error("page with the provided id already exists");
         }
-        return PageAccessor(page, access_mode);
+
+        Page* page = Page::new_page(id, type);
+        add_page(page);
+        _page_writer->write(page);
+
+        return PageAccessor(page);
     }
 
-    PageAccessor PartitionedPageManager::Partition::get_page(Page::ID id, PageAccessor::Mode access_mode) {
+    PageAccessor PartitionedPageManager::Partition::get_page(Page::ID id) {
         Page* page;
-        {
-            boost::lock_guard<boost::mutex> lock(_mutex);
-            if (_pages.find(id) != _pages.end()) {
-                page = _pages.at(id);
-                _eviction_policy->update(id);
-            } else if ((page = Page::from_storage(id, _storage)) != nullptr) {
-                add_page(page);
-            } else {
-                throw Exception(ErrorCode::PAGE_DOES_NOT_EXIST);
-            }
+        boost::lock_guard<boost::mutex> lock(_mutex);
+        if (_pages.find(id) != _pages.end()) {
+            page = _pages.at(id);
+            _eviction_policy->update(id);
+        } else if ((page = Page::from_storage(id, _storage)) != nullptr) {
+            add_page(page);
+        } else {
+            throw Exception(ErrorCode::PAGE_DOES_NOT_EXIST);
         }
-        return PageAccessor(page, access_mode);
+
+        return PageAccessor(page);
     }
 
     void PartitionedPageManager::Partition::write_page(const Page* page) {

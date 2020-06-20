@@ -116,9 +116,10 @@ namespace {
 
         ASSERT_EQ(page2->get_type(), diamond::Page::Type::INTERNAL_NODE);
         ASSERT_EQ(page2->get_num_internal_node_entries(), internal_nodes.size());
-        for (size_t i = 0; i < page1->get_num_internal_node_entries(); i++) {
+        diamond::Page::InternalNodeEntryListIterator iter = page2->internal_node_entries_begin();
+        for (size_t i = 0; i < page1->get_num_internal_node_entries(); i++, iter++) {
             const TestInput& internal_node = internal_nodes.at(i);
-            const diamond::Page::InternalNodeEntry& entry = page2->get_internal_node_entry(i);
+            const diamond::Page::InternalNodeEntry& entry = *iter;
 
             EXPECT_EQ(entry.key(), std::get<0>(internal_node));
             EXPECT_EQ(entry.next_node_id(), std::get<1>(internal_node));

@@ -43,8 +43,8 @@ namespace diamond {
             size_t num_partitions = DEFAULT_NUM_PARTITIONS,
             size_t max_num_pages_in_partition = MAX_NUM_PAGES_IN_PARTITION);
 
-        PageAccessor create_page(Page::Type type, PageAccessor::Mode access_mode) override;
-        PageAccessor get_page(Page::ID id, PageAccessor::Mode access_mode) override;
+        PageAccessor create_page(Page::Type type) override;
+        PageAccessor get_page(Page::ID id) override;
         void write_page(const Page* page) override;
         bool is_page_managed(Page::ID id) const override;
 
@@ -60,12 +60,9 @@ namespace diamond {
                 size_t max_num_pages);
             ~Partition();
 
-            PageAccessor create_page(
-                Page::ID id,
-                Page::Type type,
-                PageAccessor::Mode access_mode = PageAccessor::Mode::EXCLUSIVE);
+            PageAccessor create_page(Page::ID id, Page::Type type);
 
-            PageAccessor get_page(Page::ID id, PageAccessor::Mode access_mode);
+            PageAccessor get_page(Page::ID id);
 
             void write_page(const Page* page);
 

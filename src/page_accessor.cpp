@@ -19,45 +19,23 @@
 
 namespace diamond {
 
-    PageAccessor::PageAccessor(Page* page, Mode mode)
+    PageAccessor::PageAccessor(Page* page)
             : _page(page) {
         _page->_usage_count++;
-        switch (mode) {
-        case Mode::EXCLUSIVE:
-            lock();
-            break;
-        case Mode::SHARED:
-            lock_shared();
-            break;
-        case Mode::UPGRADE:
-            lock_upgrade();
-            break;
-        }
+    }
+
+    PageAccessor::PageAccessor(const PageAccessor& other)
+            : _page(other._page) {
+        _page->_usage_count++;
     }
 
     PageAccessor::PageAccessor(PageAccessor&& other)
-            : _locked(other._locked),
-            _mode(other._mode),
-            _page(other._page) {
+            : _page(other._page) {
         other._page = nullptr;
-        other._locked = false;
     }
 
     PageAccessor::~PageAccessor() {
         if (!_page) return;
-        if (_locked) {
-            switch (_mode) {
-            case Mode::EXCLUSIVE:
-                _page->_mutex.unlock();
-                break;
-            case Mode::SHARED:
-                _page->_mutex.unlock_shared();
-                break;
-            case Mode::UPGRADE:
-                _page->_mutex.unlock_upgrade();
-                break;
-            }
-        }
         _page->_usage_count--;
     }
 
@@ -65,54 +43,50 @@ namespace diamond {
         return _page;
     }
 
-    void PageAccessor::lock() {
-        _page->_mutex.lock();
-        _mode = Mode::EXCLUSIVE;
-        _locked = true;
+    Page* PageAccessor::operator->() const {
+        return _page;
     }
 
-    void PageAccessor::unlock() {
-        _page->_mutex.unlock();
-        _locked = false;
+    SharedPageLock::SharedPageLock(PageAccessor& page)
+            : _page(page) {
+        lock();
     }
 
-    void PageAccessor::lock_shared() {
+    SharedPageLock::~SharedPageLock() {
+        unlock();
+    }
+
+    void SharedPageLock::lock() {
+        if (_locked) return;
         _page->_mutex.lock_shared();
-        _mode = Mode::SHARED;
         _locked = true;
     }
 
-    void PageAccessor::unlock_shared() {
+    void SharedPageLock::unlock() {
+        if (!_locked) return;
         _page->_mutex.unlock_shared();
         _locked = false;
     }
 
-    void PageAccessor::lock_upgrade() {
-        _page->_mutex.lock_upgrade();
-        _mode = Mode::UPGRADE;
+    UniquePageLock::UniquePageLock(PageAccessor& page)
+            : _page(page) {
+        lock();
+    }
+
+    UniquePageLock::~UniquePageLock() {
+        unlock();
+    }
+
+    void UniquePageLock::lock() {
+        if (_locked) return;
+        _page->_mutex.lock();
         _locked = true;
     }
 
-    void PageAccessor::unlock_upgrade() {
-        _page->_mutex.unlock_upgrade();
+    void UniquePageLock::unlock() {
+        if (!_locked) return;
+        _page->_mutex.unlock();
         _locked = false;
-    }
-
-    void PageAccessor::upgrade_lock() {
-        _page->_mutex.unlock_upgrade_and_lock();
-        _mode = Mode::EXCLUSIVE;
-    }
-
-    bool PageAccessor::locked() const {
-        return _locked;
-    }
-
-    PageAccessor::Mode PageAccessor::mode() const {
-        return _mode;
-    }
-
-    Page* PageAccessor::operator->() const {
-        return _page;
     }
 
 } // namespace diamond

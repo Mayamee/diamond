@@ -29,8 +29,8 @@ namespace diamond {
     public:
         PageManager(Storage& storage);
 
-        virtual PageAccessor create_page(Page::Type type, PageAccessor::Mode access_mode) = 0;
-        virtual PageAccessor get_page(Page::ID id, PageAccessor::Mode access_mode) = 0;
+        virtual PageAccessor create_page(Page::Type type) = 0;
+        virtual PageAccessor get_page(Page::ID id) = 0;
         virtual void write_page(const Page* page) = 0;
         virtual bool is_page_managed(Page::ID id) const = 0;
 

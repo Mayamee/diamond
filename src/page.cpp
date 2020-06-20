@@ -29,12 +29,12 @@ namespace diamond {
     const uint16_t Page::SIZE = 8192;
     const uint16_t Page::MAX_KEY_SIZE = SIZE / 4;
 
-   /* Static */
-    size_t Page::default_compare(const Buffer& b0, const Buffer& b1) {
+    /* Static */
+    int Page::default_compare(const Buffer& b0, const Buffer& b1) {
         size_t b0_n = b0.size();
         size_t b1_n = b1.size();
         size_t n = (b0_n <= b1_n) ? b0_n : b1_n;
-        size_t r = std::memcmp(b0.buffer(), b1.buffer(), n);
+        int r = std::memcmp(b0.buffer(), b1.buffer(), n);
         if (r != 0 || b0_n == b1_n) {
             return r;
         }
@@ -99,7 +99,7 @@ namespace diamond {
         }
         case Type::INTERNAL_NODE: {
             size_t num_entries = buffer_reader.read<size_t>();
-            page->_internal_node_entries = new std::vector<InternalNodeEntry>();
+            page->_internal_node_entries = new InternalNodeEntryList();
             for (size_t i = 0; i < num_entries; i++) {
                 ID next_node_id = buffer_reader.read<ID>();
 
@@ -310,38 +310,53 @@ namespace diamond {
         return _internal_node_entries->size();
     }
 
-    const std::vector<Page::InternalNodeEntry>* Page::get_internal_node_entries() const {
+    const Page::InternalNodeEntryList* Page::get_internal_node_entries() const {
         ensure_type_is(Type::INTERNAL_NODE);
         return _internal_node_entries;
     }
 
-    const Page::InternalNodeEntry& Page::get_internal_node_entry(size_t i) const {
+    Page::InternalNodeEntryListIterator Page::search_internal_node_entries(const Buffer& key, Compare compare) const {
         ensure_type_is(Type::INTERNAL_NODE);
-        return _internal_node_entries->at(i);
-    }
-
-    size_t Page::search_internal_node_entries(const Buffer& key, Compare compare) const {
-        ensure_type_is(Type::INTERNAL_NODE);
-        size_t n = _internal_node_entries->size();
-        for (size_t i = 0; i < n - 1; i++) {
-            if (compare(_internal_node_entries->at(i).key(), key) > 0) {
-                return i;
+        InternalNodeEntryListIterator iter = _internal_node_entries->begin();
+        while (true) {
+            if (compare((*iter).key(), key) >= 0) {
+                return iter;
+            }
+            InternalNodeEntryListIterator prev = iter++;
+            if (iter == _internal_node_entries->end()) {
+                return prev;
             }
         }
-        return n - 1;
     }
 
-    size_t Page::insert_internal_node_entry(Buffer key, ID next_node_id) {
+    Page::InternalNodeEntryListIterator Page::internal_node_entries_begin() const {
+        ensure_type_is(Type::INTERNAL_NODE);
+        return _internal_node_entries->begin();
+    }
+
+    Page::InternalNodeEntryListIterator Page::internal_node_entries_end() const {
+        ensure_type_is(Type::INTERNAL_NODE);
+        return _internal_node_entries->end();
+    }
+
+    void Page::insert_internal_node_entry(Buffer key, ID next_node_id, Compare compare) {
         ensure_type_is(Type::INTERNAL_NODE);
         uint16_t space = internal_node_entry_space_req(key);
         ensure_space_available(space);
 
-        size_t i = _internal_node_entries->size();
-        _internal_node_entries->emplace_back(
+        InternalNodeEntryListIterator iter = _internal_node_entries->begin();
+        while (iter != _internal_node_entries->end()) {
+            if (compare((*iter).key(), key) >= 0) {
+                break;
+            }
+            iter++;
+        }
+
+        _internal_node_entries->emplace(
+            iter,
             std::move(key),
             next_node_id);
         _size += space;
-        return i;
     }
 
     bool Page::can_insert_internal_node_entry(const Buffer& key) const {
@@ -387,18 +402,24 @@ namespace diamond {
         return _leaf.entries->end();
     }
 
-    size_t Page::insert_leaf_node_entry(Buffer key, ID data_id, size_t data_index) {
+    void Page::insert_leaf_node_entry(Buffer key, ID data_id, size_t data_index, Compare compare) {
         ensure_type_is(Type::LEAF_NODE);
         uint16_t space = leaf_node_entry_space_req(key);
         ensure_space_available(space);
 
-        size_t i = _leaf.entries->size();
-        _leaf.entries->emplace_back(
+        LeafNodeEntryListIterator iter = _leaf.entries->begin();
+        while (iter != _leaf.entries->end()) {
+            if (compare((*iter).key(), key) >= 0) {
+                break;
+            }
+            iter++;
+        }
+
+        _leaf.entries->emplace(iter,
             std::move(key),
             data_id,
             data_index);
         _size += space;
-        return i;
     }
 
     bool Page::can_insert_leaf_node_entry(const Buffer& key) const {
@@ -510,8 +531,11 @@ namespace diamond {
         case Type::INTERNAL_NODE: {
             size_t num_entries = _internal_node_entries->size();
             buffer_writer.write<size_t>(num_entries);
-            for (size_t i = 0; i < num_entries; i++) {
-                const InternalNodeEntry& entry = _internal_node_entries->at(i);
+            InternalNodeEntryListIterator iter;
+            for (iter = _internal_node_entries->begin();
+                    iter != _internal_node_entries->end();
+                    iter++) {
+                const InternalNodeEntry& entry = *iter;
 
                 buffer_writer.write<ID>(entry.next_node_id());
 
@@ -572,7 +596,7 @@ namespace diamond {
             _free_list.entries = new std::vector<FreeListEntry>();
             break;
         case Type::INTERNAL_NODE:
-            _internal_node_entries = new std::vector<InternalNodeEntry>();
+            _internal_node_entries = new InternalNodeEntryList();
             break;
         case Type::LEAF_NODE:
             _leaf.next = 0;

@@ -73,7 +73,7 @@ namespace diamond {
         PageManager& _manager;
 
         PageAccessor get_leaf_page(const Buffer& id, const Buffer& key, Page::Compare compare_func);
-        PageAccessor get_free_data_page(const Buffer& val);
+        void insert_into_data_page(const Buffer& val, Page::ID& data_page_id, size_t& data_page_index);
         bool get_root_node_id(const Buffer& id, Page::ID& root_node_id);
         PageAccessor create_root_node_page(const Buffer& id);
     };
