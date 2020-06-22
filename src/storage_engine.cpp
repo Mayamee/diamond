@@ -23,17 +23,13 @@ namespace diamond {
     StorageEngine::StorageEngine(PageManager& page_manager)
             : _manager(page_manager) {
         if (_manager.storage().size() == 0) {
-            _manager.create_page(Page::Type::ROOTS);
-            _manager.create_page(Page::Type::FREE_LIST);
+            _manager.create_page(Page::Type::COLLECTIONS);
         }
     }
 
-    uint64_t StorageEngine::count(const Buffer& id) {
-        Page::ID page_id;
-        if (!get_root_node_id(id, page_id)) {
-            return 0;
-        }
-
+    uint64_t StorageEngine::count(const Buffer& collection_name) {
+        Collection collection = get_or_create_collection(collection_name);
+        Page::ID page_id = collection.root_page_id;
         uint64_t count = 0;
         while (page_id) {
             PageAccessor page = _manager.get_page(page_id);
@@ -54,15 +50,23 @@ namespace diamond {
         return count;
     }
 
-    bool StorageEngine::exists(const Buffer& id, const Buffer& key, Page::Compare compare_func) {
-        PageAccessor page = get_leaf_page(id, key, compare_func);
+    bool StorageEngine::exists(const Buffer& collection_name, const Buffer& key, Page::Compare compare_func) {
+        Collection collection = get_or_create_collection(collection_name);
+        PageAccessor page = get_leaf_page(
+            collection.root_page_id,
+            key,
+            compare_func);
         SharedPageLock page_lock(page);
         Page::LeafNodeEntryListIterator iter = page->find_leaf_node_entry(key, compare_func);
         return iter != page->leaf_node_entries_end();
     }
 
-    Buffer StorageEngine::get(const Buffer& id, const Buffer& key, Page::Compare compare_func) {
-        PageAccessor page = get_leaf_page(id, key, compare_func);
+    Buffer StorageEngine::get(const Buffer& collection_name, const Buffer& key, Page::Compare compare_func) {
+        Collection collection = get_or_create_collection(collection_name);
+        PageAccessor page = get_leaf_page(
+            collection.root_page_id,
+            key,
+            compare_func);
         SharedPageLock page_lock(page);
         Page::LeafNodeEntryListIterator iter = page->find_leaf_node_entry(key, compare_func);
         if (iter == page->leaf_node_entries_end()) {
@@ -74,12 +78,11 @@ namespace diamond {
         return Buffer(data_page->get_data_entry(entry.data_index()).data());      
     }
 
-    void StorageEngine::insert(const Buffer& id, Buffer key, Buffer val, Page::Compare compare_func) {
-        Page::ID data_page_id;
-        size_t data_page_index;
+    void StorageEngine::insert(const Buffer& collection_name, Buffer key, Buffer val, Page::Compare compare_func) {
+        Collection collection = get_or_create_collection(collection_name);
         {
             // Make optimisitic descent
-            PageAccessor page = get_leaf_page(id, key, compare_func);
+            PageAccessor page = get_leaf_page(collection.root_page_id, key, compare_func);
             UniquePageLock page_lock(page);
             Page::LeafNodeEntryListIterator iter = page->find_leaf_node_entry(key, compare_func);
             if (iter != page->leaf_node_entries_end()) {
@@ -88,6 +91,8 @@ namespace diamond {
 
             // Leaf Page is safe, insert
             if (page->can_insert_leaf_node_entry(key)) {
+                Page::ID data_page_id;
+                size_t data_page_index;
                 insert_into_data_page(val, data_page_id, data_page_index);
                 page->insert_leaf_node_entry(key, data_page_id, data_page_index, compare_func);
                 return;
@@ -99,11 +104,8 @@ namespace diamond {
     }
 
     StorageEngine::Iterator StorageEngine::get_iterator(const Buffer& id) {
-        Page::ID page_id;
-        if (!get_root_node_id(id, page_id)) {
-            return Iterator(_manager, create_root_node_page(id));
-        }
-
+        Collection collection = get_or_create_collection(id);
+        Page::ID page_id = collection.root_page_id;
         while (true) {
             PageAccessor page = _manager.get_page(page_id);
             switch (page->get_type()) {
@@ -120,12 +122,94 @@ namespace diamond {
         }
     }
 
-    PageAccessor StorageEngine::get_leaf_page(const Buffer& id, const Buffer& key, Page::Compare compare_func) {
-        Page::ID page_id;
-        if (!get_root_node_id(id, page_id)) {
-            return create_root_node_page(id);
+    StorageEngine::Collection StorageEngine::create_collection(const Buffer& name) {
+        Page::ID page_id = 1;
+        while (true) {
+            PageAccessor page = _manager.get_page(page_id);
+            if (page->get_type() != Page::Type::COLLECTIONS) {
+                throw Exception(ErrorCode::CORRUPTED_FILE);
+            }
+
+            UpgradePageLock page_lock(page);
+            if (page->has_collection(name)) {
+                // CASE 1: Some other thread has already created it, we can downgrade the lock.
+                page_lock.downgrade();
+                const Page::Collection& collection = page->get_collection(name);
+                return Collection{
+                    .root_page_id = collection.root_node_id(),
+                    .free_list_id = collection.free_list_id()
+                };
+            }
+
+            page_lock.upgrade();
+            if (page->can_insert_collection(id)) {
+                // CASE 2: There is space in the current COLLECTIONS page.
+                PageAccessor root_page = _manager.create_page(Page::Type::LEAF_NODE);
+                PageAccessor free_list_page = _manager.create_page(Page::Type::FREE_LIST);
+                page->add_collection(id, root_page->get_id(), free_list_page->get_id());
+                _manager.write_page(page.instance());
+                return Collection{
+                    .root_page_id = root_page->get_id(),
+                    .free_list_id = free_list_page->get_id()
+                };
+            }
+
+            page_id = page->get_next_collections_page();
+            if (page_id != Page::INVALID_ID) continue;
+
+            // CASE 3: There is no space in the last COLLECTIONS page, create a new one.
+            PageAccessor root_page = _manager.create_page(Page::Type::LEAF_NODE);
+            PageAccessor free_list_page = _manager.create_page(Page::Type::FREE_LIST);
+            PageAccessor new_collections_page = _manager.create_page(Page::Type::COLLECTIONS);
+            UniquePageLock new_collections_page_lock(new_collections_page);
+            new_collections_page->add_collection(id, root_page->get_id(), free_list_page->get_id());
+            page->set_next_collections_page(new_collections_page->get_id());
+            _manager.write_page(new_collections_page.instance());
+            _manager.write_page(page.instance());
+
+            return Collection{
+                .root_page = root_page->get_id(),
+                .free_list_page = free_list_page->get_id()
+            };
+        }
+    }
+
+    StorageEngine::Collection StorageEngine::get_or_create_collection(const Buffer& name) {
+        bool created;
+        return get_or_create_collection(name, created);
+    }
+
+    StorageEngine::Collection StorageEngine::get_or_create_collection(const Buffer& name, bool& created) {
+        Page::ID page_id = 1;
+        while (page_id != Page::INVALID_ID) {
+            // CASE 1: Iterate over the collections list with a shared lock to avoid contention.
+            PageAccessor page = _manager.get_page(page_id);
+            SharedPageLock page_lock(page);
+            if (page->has_collection(id)) {
+                const Page::Collection& collection = page->get_collection(id);
+                created = false;
+                return Collection{
+                    .root_page = collection.root_node_id(),
+                    .free_list_page = collection.free_list_id()
+                };
+            }
+
+            page_id = page->get_next_collections_page();
         }
 
+        /* 
+            CASE 2: Second iteration using upgradeable locks, it will either create
+            the collection entry or get the collection another thread created.
+        */
+        created = true;
+        return create_collection(name);
+    }
+
+    PageAccessor StorageEngine::get_leaf_page(
+            Page::ID root_page_id,
+            const Buffer& key,
+            Page::Compare compare_func) {
+        Page::ID page_id = root_page_id;
         while (true) {
             PageAccessor page = _manager.get_page(page_id);
             Page::Type type = page->get_type();
@@ -143,8 +227,12 @@ namespace diamond {
         }
     }
 
-    void StorageEngine::insert_into_data_page(const Buffer& val, Page::ID& data_page_id, size_t& data_page_index) {
-        Page::ID page_id = 2;
+    void StorageEngine::insert_into_data_page(
+            Page::ID free_list_id,
+            const Buffer& val,
+            Page::ID& data_page_id,
+            size_t& data_page_index) {
+        Page::ID page_id = free_list_id;
         while (true) {
             PageAccessor page = _manager.get_page(page_id);
             if (page->get_type() != Page::Type::FREE_LIST) {
@@ -196,47 +284,6 @@ namespace diamond {
         }
     }
 
-    bool StorageEngine::get_root_node_id(const Buffer& id, Page::ID& root_node_id) {
-        Page::ID page_id = 1;
-        while (page_id != Page::INVALID_ID) {
-            PageAccessor page = _manager.get_page(page_id);
-            SharedPageLock page_lock(page);
-            if (page->get_root_node_id(id, root_node_id)) {
-                return true;
-            }
-
-            page_id = page->get_next_roots_page();
-        }
-
-        return false;
-    }
-
-    PageAccessor StorageEngine::create_root_node_page(const Buffer& id) {
-        Page::ID page_id = 1;
-        while (true) {
-            PageAccessor page = _manager.get_page(page_id);
-            UniquePageLock page_lock(page);
-            page_id = page->get_next_roots_page();
-            if (page_id != Page::INVALID_ID) continue;
-            PageAccessor root_page = _manager.create_page(Page::Type::LEAF_NODE);
-            SharedPageLock root_page_lock(root_page);
-            if (page->can_insert_root_node_id(id)) {
-                page->set_root_node_id(id, root_page->get_id());
-                _manager.write_page(page.instance());
-                return root_page;
-            }
-
-            PageAccessor new_roots_page = _manager.create_page(Page::Type::ROOTS);
-            UniquePageLock new_roots_page_lock(new_roots_page);
-            new_roots_page->set_root_node_id(id, root_page->get_id());
-            page->set_next_roots_page(new_roots_page->get_id());
-            _manager.write_page(new_roots_page.instance());
-            _manager.write_page(page.instance());
-
-            return root_page;
-        }
-    }
-
     StorageEngine::Iterator::~Iterator() {
         if (_leaf_page_iterator) {
             delete _leaf_page_iterator;
@@ -257,10 +304,7 @@ namespace diamond {
             throw Exception(ErrorCode::CORRUPTED_FILE);
         }
         SharedPageLock next_page_lock(next_page);
-        LeafPageIterator* new_leaf_page_iterator = new LeafPageIterator{
-            .page = std::move(next_page),
-            .iter = next_page->leaf_node_entries_begin()
-        };
+        LeafPageIterator* new_leaf_page_iterator = new LeafPageIterator(std::move(next_page));
         delete _leaf_page_iterator;
         _leaf_page_iterator = new_leaf_page_iterator;
     }
@@ -283,9 +327,11 @@ namespace diamond {
 
     StorageEngine::Iterator::Iterator(PageManager& manager, PageAccessor page) 
         : _manager(manager),
-        _leaf_page_iterator(new LeafPageIterator{
-            .page = std::move(page),
-            .iter = page->leaf_node_entries_begin()
-        }) {}
+        _leaf_page_iterator(new LeafPageIterator(std::move(page))) {}
+
+    StorageEngine::Iterator::LeafPageIterator::LeafPageIterator(PageAccessor _page)
+        : page(std::move(_page)),
+        lock(SharedPageLock(_page)),
+        iter(_page->leaf_node_entries_begin()) {}
 
 } // namespace diamond

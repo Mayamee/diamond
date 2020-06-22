@@ -36,6 +36,7 @@ namespace diamond {
     class PageAccessor;
     class SharedPageLock;
     class UniquePageLock;
+    class UpgradePageLock;
 
     class Page : boost::noncopyable {
     public:
@@ -48,11 +49,23 @@ namespace diamond {
         static const uint16_t MAX_KEY_SIZE;
 
         enum class Type {
+            COLLECTIONS,
             DATA,
             FREE_LIST,
             INTERNAL_NODE,
-            LEAF_NODE,
-            ROOTS
+            LEAF_NODE
+        };
+
+        class Collection {
+        public:
+            Collection(ID root_node_id, ID free_list_id);
+
+            ID root_node_id() const;
+            ID free_list_id() const;
+
+        private:
+            ID _root_node_id;
+            ID _free_list_id;
         };
 
         class DataEntry {
@@ -88,45 +101,47 @@ namespace diamond {
 
         class InternalNodeEntry {
         public:
-            InternalNodeEntry(Buffer key, ID next_node_id);
+            InternalNodeEntry(ID key_data_id, size_t key_data_index, ID next_node_id);
 
-            size_t key_size() const;
-            const Buffer& key() const;
+            ID key_data_id() const;
+            size_t key_data_index() const;
 
             ID next_node_id() const;
 
         private:
-            Buffer _key;
+            ID _key_data_id;
+            size_t _key_data_index;
             ID _next_node_id;
         };
 
         class LeafNodeEntry {
         public:
-            LeafNodeEntry(Buffer key, ID data_id, size_t data_index);
+            LeafNodeEntry(ID key_data_id, size_t key_data_index, ID val_data_id, size_t val_data_index);
 
-            size_t key_size() const;
-            const Buffer& key() const;
+            ID key_data_id() const;
+            size_t key_data_index() const;
 
-            ID data_id() const;
-            size_t data_index() const;
+            ID val_data_id() const;
+            size_t val_data_index() const;
 
         private:
-            Buffer _key;
-            ID _data_id;
-            size_t _data_index;
+            ID _key_data_id;
+            size_t _key_data_index;
+            ID _val_data_id;
+            size_t _val_data_index;
         };
 
+        using Collections = std::unordered_map<
+            Buffer,
+            Collection,
+            Buffer::Hash,
+            Buffer::EqualTo
+        >;
+        using CollectionsIterator = Collections::iterator;
         using InternalNodeEntryList = std::list<InternalNodeEntry>;
         using InternalNodeEntryListIterator = InternalNodeEntryList::iterator;
         using LeafNodeEntryList = std::list<LeafNodeEntry>;
         using LeafNodeEntryListIterator = LeafNodeEntryList::iterator;
-        using RootsMap = std::unordered_map<
-            Buffer,
-            ID,
-            Buffer::Hash,
-            Buffer::EqualTo
-        >;
-        using RootsMapIterator = RootsMap::iterator;
 
         static int default_compare(const Buffer& b0, const Buffer& b1);
         static uint64_t file_pos_for_id(ID id);
@@ -146,6 +161,14 @@ namespace diamond {
 
         uint64_t usage_count() const;
 
+        ID get_next_collections_page() const;
+        void set_next_collections_page(ID next);
+        const Collections* get_collections() const;
+        bool can_insert_collection(const Buffer& name) const;
+        bool has_collection(const Buffer& name) const;
+        const Collection& get_collection(const Buffer& name) const;
+        void add_collection(Buffer name, ID root_node_id, ID free_list_id);
+
         size_t get_num_data_entries() const;
         const std::vector<DataEntry>* get_data_entries() const;
         const DataEntry& get_data_entry(size_t i) const;
@@ -163,39 +186,28 @@ namespace diamond {
 
         size_t get_num_internal_node_entries() const;
         const InternalNodeEntryList* get_internal_node_entries() const;
-        InternalNodeEntryListIterator search_internal_node_entries(
-            const Buffer& key,
-            Compare compare = &default_compare) const;
         InternalNodeEntryListIterator internal_node_entries_begin() const;
         InternalNodeEntryListIterator internal_node_entries_end() const;
         void insert_internal_node_entry(
-            Buffer key,
-            ID next_node_id,
-            Compare compare = &default_compare);
-        bool can_insert_internal_node_entry(const Buffer& key) const;
+            InternalNodeEntryListIterator pos,
+            ID key_data_id,
+            size_t key_data_index,
+            ID next_node_id);
+        bool can_insert_internal_node_entry() const;
 
         ID get_next_leaf_node_page() const;
         size_t get_num_leaf_node_entries() const;
         const LeafNodeEntryList* get_leaf_node_entries() const;
-        LeafNodeEntryListIterator find_leaf_node_entry(
-            const Buffer& key,
-            Compare compare = &default_compare) const;
         LeafNodeEntryListIterator leaf_node_entries_begin() const;
         LeafNodeEntryListIterator leaf_node_entries_end() const;
         void insert_leaf_node_entry(
-            Buffer key,
-            ID data_id,
-            size_t data_index,
-            Compare compare = &default_compare);
-        bool can_insert_leaf_node_entry(const Buffer& key) const;
+            LeafNodeEntryListIterator pos,
+            ID key_data_id,
+            size_t key_data_index,
+            ID val_data_id,
+            size_t val_data_index);
+        bool can_insert_leaf_node_entry() const;
         void split_leaf_node_entries(Page* other);
-
-        ID get_next_roots_page() const;
-        void set_next_roots_page(ID next);
-        const RootsMap* get_roots_map() const;
-        bool can_insert_root_node_id(const Buffer& id) const;
-        bool get_root_node_id(const Buffer& id, ID& root_node_id) const;
-        void set_root_node_id(Buffer id, ID root_node_id);
 
         void write_to_storage(Storage& storage) const;
         void write_to_buffer(Buffer& buffer) const;
@@ -204,11 +216,16 @@ namespace diamond {
         friend class PageAccessor;
         friend class SharedPageLock;
         friend class UniquePageLock;
+        friend class UpgradePageLock;
 
         ID _id;
         Type _type;
         uint16_t _size;
         union {
+            struct {
+                Collections* map;
+                ID next;
+            } _collections;
             std::vector<DataEntry>* _data_entries;
             struct {
                 std::vector<FreeListEntry>* entries;
@@ -219,38 +236,32 @@ namespace diamond {
                 LeafNodeEntryList* entries;
                 ID next;
             } _leaf;
-            struct {
-                RootsMap* map;
-                ID next;
-            } _roots;
         };
         std::atomic_uint64_t _usage_count;
         boost::shared_mutex _mutex;
 
         Page(ID id, Type type);
 
-        uint16_t data_entry_space_req(const Buffer& data) const {
+        static uint16_t collection_space_req(const Buffer& id) {
+            return sizeof(size_t) + id.size() + sizeof(ID) + sizeof(ID);
+        }
+
+        static uint16_t data_entry_space_req(const Buffer& data) {
             return sizeof(size_t) + data.size();
         }
 
-        uint16_t free_list_entry_space_req() const {
+        static uint16_t free_list_entry_space_req() {
             return sizeof(ID) + sizeof(uint16_t);
         }
 
-        uint16_t internal_node_entry_space_req(const Buffer& key) const {
-            return sizeof(size_t) + key.size() + sizeof(ID);
+        static uint16_t internal_node_entry_space_req() {
+            // key_data_id, key_data_index, child_node_id
+            return sizeof(ID) + sizeof(size_t) + sizeof(ID);
         }
 
-        uint16_t leaf_node_entry_space_req(const Buffer& key) const {
-            return sizeof(size_t) + key.size() + sizeof(ID) + sizeof(size_t);
-        }
-
-        uint16_t leaf_node_entry_space_req(const LeafNodeEntry& entry) const {
-            return leaf_node_entry_space_req(entry.key());
-        }
-
-        uint16_t roots_element_space_req(const Buffer& id) const {
-            return sizeof(size_t) + id.size() + sizeof(ID);
+        static uint16_t leaf_node_entry_space_req() {
+            // key_data_id, key_data_index, val_data_id, val_data_index
+            return sizeof(ID) + sizeof(size_t) + sizeof(ID) + sizeof(size_t);
         }
 
         void ensure_type_is(Type type) const {

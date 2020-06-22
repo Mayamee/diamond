@@ -43,7 +43,10 @@ namespace diamond {
             PageManager& _manager;
 
             struct LeafPageIterator {
+                LeafPageIterator(PageAccessor _page);
+
                 PageAccessor page;
+                SharedPageLock lock;
                 Page::LeafNodeEntryListIterator iter;
             };
             LeafPageIterator* _leaf_page_iterator;
@@ -53,29 +56,43 @@ namespace diamond {
 
         StorageEngine(PageManager& page_manager);
 
-        uint64_t count(const Buffer& id);
+        uint64_t count(const Buffer& collection_name);
         bool exists(
-            const Buffer& id,
+            const Buffer& collection_name,
             const Buffer& key,
             Page::Compare compare_func = &Page::default_compare);
         Buffer get(
-            const Buffer& id,
+            const Buffer& collection_name,
             const Buffer& key,
             Page::Compare compare_func = &Page::default_compare);
         void insert(
-            const Buffer& id,
+            const Buffer& collection_name,
             Buffer key,
             Buffer val,
             Page::Compare compare_func = &Page::default_compare);
-        Iterator get_iterator(const Buffer& id);
+        Iterator get_iterator(const Buffer& collection_name);
 
     private:
         PageManager& _manager;
 
-        PageAccessor get_leaf_page(const Buffer& id, const Buffer& key, Page::Compare compare_func);
-        void insert_into_data_page(const Buffer& val, Page::ID& data_page_id, size_t& data_page_index);
-        bool get_root_node_id(const Buffer& id, Page::ID& root_node_id);
-        PageAccessor create_root_node_page(const Buffer& id);
+        struct Collection {
+            Page::ID root_page_id;
+            Page::ID free_list_id;
+        };
+
+        Collection create_collection(const Buffer& name);
+        Collection get_or_create_collection(const Buffer& name);
+        Collection get_or_create_collection(const Buffer& name, bool& created);
+
+        PageAccessor get_leaf_page(
+            Page::ID root_page_id,
+            const Buffer& key,
+            Page::Compare compare_func);
+        void insert_into_data_page(
+            Page::ID free_list_id,
+            const Buffer& val,
+            Page::ID& data_page_id,
+            size_t& data_page_index);
     };
 
 }

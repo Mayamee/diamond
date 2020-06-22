@@ -34,19 +34,13 @@ namespace diamond {
 
         Page* instance() const;
 
-        void lock();
-        void unlock();
-
-        void lock_shared();
-        void unlock_shared();
-
         Page* operator->() const;
 
     private:
         Page* _page;
     };
 
-    class SharedPageLock {
+    class SharedPageLock : noncopyable {
     public:
         SharedPageLock(PageAccessor& page);
         ~SharedPageLock();
@@ -59,7 +53,7 @@ namespace diamond {
         bool _locked;
     };
 
-    class UniquePageLock {
+    class UniquePageLock : noncopyable {
     public:
         UniquePageLock(PageAccessor& page);
         ~UniquePageLock();
@@ -70,6 +64,28 @@ namespace diamond {
     private:
         PageAccessor& _page;
         bool _locked;
+    };
+
+    class UpgradePageLock : noncopyable {
+    public:
+        UpgradePageLock(PageAccessor& page);
+        ~UpgradePageLock();
+
+        void lock();
+        void unlock();
+
+        void downgrade();
+        void upgrade();
+
+    private:
+        PageAccessor& _page;
+
+        bool _locked;
+        enum State {
+            start,
+            downgraded,
+            upgraded
+        } _state;
     };
 
 } // namespace diamond

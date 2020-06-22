@@ -57,6 +57,26 @@ namespace diamond {
 
         Page* page = new Page(id, buffer_reader.read<Type>());
         switch (page->_type) {
+        case Type::COLLECTIONS: {
+            page->_collections.next = buffer_reader.read<ID>();
+            size_t num_elements = buffer_reader.read<size_t>();
+            page->_collections.map = new Collections();
+            for (size_t i = 0; i < num_elements; i++) {
+                size_t id_size = buffer_reader.read<size_t>();
+                Buffer id(id_size);
+                buffer_reader.read(id);
+
+                ID root_node_id = buffer_reader.read<ID>();
+                ID free_list_id = buffer_reader.read<ID>();
+
+                page->_collections.map->try_emplace(
+                    std::move(id),
+                    root_node_id,
+                    free_list_id);
+                page->_size += collection_space_req(id);
+            }
+            break;
+        }
         case Type::DATA: {
             size_t num_entries = buffer_reader.read<size_t>();
             page->_data_entries = new std::vector<DataEntry>();
@@ -93,7 +113,7 @@ namespace diamond {
                 ID data_id = buffer_reader.read<ID>(); 
                 uint16_t free_space = buffer_reader.read<uint16_t>();
                 page->_free_list.entries->emplace_back(data_id, free_space);
-                page->_size += sizeof(data_id) + sizeof(free_space);
+                page->_size += free_list_entry_space_req();
             }
             break;
         }
@@ -101,14 +121,12 @@ namespace diamond {
             size_t num_entries = buffer_reader.read<size_t>();
             page->_internal_node_entries = new InternalNodeEntryList();
             for (size_t i = 0; i < num_entries; i++) {
+                ID key_data_id = buffer_reader.read<ID>();
+                size_t key_data_index = buffer_reader.read<size_t>();
                 ID next_node_id = buffer_reader.read<ID>();
 
-                size_t key_size = buffer_reader.read<size_t>();
-                Buffer key(key_size);
-                buffer_reader.read(key);
-
-                page->_internal_node_entries->emplace_back(std::move(key), next_node_id);
-                page->_size += key_size + sizeof(next_node_id);
+                page->_internal_node_entries->emplace_back(key_data_id, key_data_index, next_node_id);
+                page->_size += internal_node_entry_space_req();
             }
             break;
         }
@@ -117,31 +135,17 @@ namespace diamond {
             size_t num_entries = buffer_reader.read<size_t>();
             page->_leaf.entries = new LeafNodeEntryList();
             for (size_t i = 0; i < num_entries; i++) {
-                ID data_id = buffer_reader.read<ID>();
-                size_t data_index = buffer_reader.read<size_t>();
+                ID key_data_id = buffer_reader.read<ID>();
+                size_t key_data_index = buffer_reader.read<size_t>();
+                ID val_data_id = buffer_reader.read<ID>();
+                size_t val_data_index = buffer_reader.read<size_t>();
 
-                size_t key_size = buffer_reader.read<size_t>();
-                Buffer key(key_size);
-                buffer_reader.read(key);
-
-                page->_leaf.entries->emplace_back(std::move(key), data_id, data_index);
-                page->_size += key_size + sizeof(data_id) + sizeof(data_index);
-            }
-            break;
-        }
-        case Type::ROOTS: {
-            page->_roots.next = buffer_reader.read<ID>();
-            size_t num_elements = buffer_reader.read<size_t>();
-            page->_roots.map = new RootsMap();
-            for (size_t i = 0; i < num_elements; i++) {
-                size_t id_size = buffer_reader.read<size_t>();
-                Buffer id(id_size);
-                buffer_reader.read(id);
-
-                ID root_node_id = buffer_reader.read<ID>();
-
-                page->_roots.map->emplace(std::move(id), root_node_id);
-                page->_size += id_size + sizeof(root_node_id);
+                page->_leaf.entries->emplace_back(
+                    key_data_id,
+                    key_data_index,
+                    val_data_id,
+                    val_data_index);
+                page->_size += leaf_node_entry_space_req();
             }
             break;
         }
@@ -157,6 +161,9 @@ namespace diamond {
 
     Page::~Page() {
         switch (_type) {
+        case Type::COLLECTIONS:
+            delete _collections.map;
+            break;
         case Type::DATA:
             delete _data_entries;
             break;
@@ -168,9 +175,6 @@ namespace diamond {
             break;
         case Type::LEAF_NODE:
             delete _leaf.entries;
-            break;
-        case Type::ROOTS:
-            delete _roots.map;
             break;
         }
     }
@@ -194,6 +198,8 @@ namespace diamond {
     uint16_t Page::header_size() const {
         uint16_t size = sizeof(Type);
         switch (_type) {
+        case Type::COLLECTIONS:
+            return size + sizeof(ID) + sizeof(size_t);
         case Type::DATA:
             return size + sizeof(size_t);
         case Type::FREE_LIST:
@@ -201,8 +207,6 @@ namespace diamond {
         case Type::INTERNAL_NODE:
             return size + sizeof(size_t);
         case Type::LEAF_NODE:
-            return size + sizeof(ID) + sizeof(size_t);
-        case Type::ROOTS:
             return size + sizeof(ID) + sizeof(size_t);
         }
     }
@@ -213,6 +217,49 @@ namespace diamond {
 
     uint64_t Page::usage_count() const {
         return _usage_count.load(std::memory_order::memory_order_acquire);
+    }
+
+    Page::ID Page::get_next_collections_page() const {
+        ensure_type_is(Type::COLLECTIONS);
+        return _collections.next;
+    }
+
+    void Page::set_next_collections_page(ID next) {
+        ensure_type_is(Type::COLLECTIONS);
+        _collections.next = next;
+    }
+
+    const Page::Collections* Page::get_collections() const {
+        ensure_type_is(Type::COLLECTIONS);
+        return _collections.map;
+    }
+
+    bool Page::can_insert_collection(const Buffer& id) const {
+        ensure_type_is(Type::COLLECTIONS);
+        return get_remaining_space() >= collection_space_req(id);
+    }
+
+    bool Page::has_collection(const Buffer& name) const {
+        ensure_type_is(Type::COLLECTIONS);
+        return _collections.map->find(name) != _collections.map->end();
+    }
+
+    const Page::Collection& Page::get_collection(const Buffer& name) const {
+        ensure_type_is(Type::COLLECTIONS);
+        return _collections.map->at(name);
+    }
+
+    void Page::add_collection(Buffer name, ID root_node_id, ID free_list_id) {
+        ensure_type_is(Type::COLLECTIONS);
+        uint16_t space = collection_space_req(name);
+        ensure_space_available(space);
+
+        if (_collections.map->try_emplace(
+                std::move(name),
+                root_node_id,
+                free_list_id).second) {
+            _size += space;
+        }
     }
 
     size_t Page::get_num_data_entries() const {
@@ -315,19 +362,19 @@ namespace diamond {
         return _internal_node_entries;
     }
 
-    Page::InternalNodeEntryListIterator Page::search_internal_node_entries(const Buffer& key, Compare compare) const {
-        ensure_type_is(Type::INTERNAL_NODE);
-        InternalNodeEntryListIterator iter = _internal_node_entries->begin();
-        while (true) {
-            if (compare((*iter).key(), key) >= 0) {
-                return iter;
-            }
-            InternalNodeEntryListIterator prev = iter++;
-            if (iter == _internal_node_entries->end()) {
-                return prev;
-            }
-        }
-    }
+    // Page::InternalNodeEntryListIterator Page::search_internal_node_entries(const Buffer& key, Compare compare) const {
+    //     ensure_type_is(Type::INTERNAL_NODE);
+    //     InternalNodeEntryListIterator iter = _internal_node_entries->begin();
+    //     while (true) {
+    //         if (compare((*iter).key(), key) >= 0) {
+    //             return iter;
+    //         }
+    //         InternalNodeEntryListIterator prev = iter++;
+    //         if (iter == _internal_node_entries->end()) {
+    //             return prev;
+    //         }
+    //     }
+    // }
 
     Page::InternalNodeEntryListIterator Page::internal_node_entries_begin() const {
         ensure_type_is(Type::INTERNAL_NODE);
@@ -339,29 +386,26 @@ namespace diamond {
         return _internal_node_entries->end();
     }
 
-    void Page::insert_internal_node_entry(Buffer key, ID next_node_id, Compare compare) {
+    void Page::insert_internal_node_entry(
+            InternalNodeEntryListIterator pos,
+            ID key_data_id,
+            size_t key_data_index,
+            ID next_node_id) {
         ensure_type_is(Type::INTERNAL_NODE);
-        uint16_t space = internal_node_entry_space_req(key);
+        uint16_t space = internal_node_entry_space_req();
         ensure_space_available(space);
 
-        InternalNodeEntryListIterator iter = _internal_node_entries->begin();
-        while (iter != _internal_node_entries->end()) {
-            if (compare((*iter).key(), key) >= 0) {
-                break;
-            }
-            iter++;
-        }
-
         _internal_node_entries->emplace(
-            iter,
-            std::move(key),
+            pos,
+            key_data_id,
+            key_data_index,
             next_node_id);
         _size += space;
     }
 
-    bool Page::can_insert_internal_node_entry(const Buffer& key) const {
+    bool Page::can_insert_internal_node_entry() const {
         ensure_type_is(Type::INTERNAL_NODE);
-        return get_remaining_space() >= internal_node_entry_space_req(key);
+        return get_remaining_space() >= internal_node_entry_space_req();
     }
 
     Page::ID Page::get_next_leaf_node_page() const {
@@ -379,18 +423,18 @@ namespace diamond {
         return _leaf.entries;
     }
 
-    Page::LeafNodeEntryListIterator Page::find_leaf_node_entry(const Buffer& key, Compare compare) const {
-        ensure_type_is(Type::LEAF_NODE);
-        LeafNodeEntryListIterator iter;
-        for (iter = _leaf.entries->begin(); 
-                iter != _leaf.entries->end();
-                iter++) {
-            if (compare((*iter).key(), key) == 0) {
-                return iter;
-            }
-        }
-        return iter;
-    }
+    // Page::LeafNodeEntryListIterator Page::find_leaf_node_entry(const Buffer& key, Compare compare) const {
+    //     ensure_type_is(Type::LEAF_NODE);
+    //     LeafNodeEntryListIterator iter;
+    //     for (iter = _leaf.entries->begin(); 
+    //             iter != _leaf.entries->end();
+    //             iter++) {
+    //         if (compare((*iter).key(), key) == 0) {
+    //             return iter;
+    //         }
+    //     }
+    //     return iter;
+    // }
 
     Page::LeafNodeEntryListIterator Page::leaf_node_entries_begin() const {
         ensure_type_is(Type::LEAF_NODE);
@@ -402,29 +446,28 @@ namespace diamond {
         return _leaf.entries->end();
     }
 
-    void Page::insert_leaf_node_entry(Buffer key, ID data_id, size_t data_index, Compare compare) {
+    void Page::insert_leaf_node_entry(
+            LeafNodeEntryListIterator pos,
+            ID key_data_id,
+            size_t key_data_index,
+            ID val_data_id,
+            size_t val_data_index) {
         ensure_type_is(Type::LEAF_NODE);
-        uint16_t space = leaf_node_entry_space_req(key);
+        uint16_t space = leaf_node_entry_space_req();
         ensure_space_available(space);
 
-        LeafNodeEntryListIterator iter = _leaf.entries->begin();
-        while (iter != _leaf.entries->end()) {
-            if (compare((*iter).key(), key) >= 0) {
-                break;
-            }
-            iter++;
-        }
-
-        _leaf.entries->emplace(iter,
-            std::move(key),
-            data_id,
-            data_index);
+        _leaf.entries->emplace(
+            pos,
+            key_data_id,
+            key_data_index,
+            val_data_id,
+            val_data_index);
         _size += space;
     }
 
-    bool Page::can_insert_leaf_node_entry(const Buffer& key) const {
+    bool Page::can_insert_leaf_node_entry() const {
         ensure_type_is(Type::LEAF_NODE);
-        return get_remaining_space() >= leaf_node_entry_space_req(key);
+        return get_remaining_space() >= leaf_node_entry_space_req();
     }
 
     void Page::split_leaf_node_entries(Page* other) {
@@ -433,58 +476,14 @@ namespace diamond {
 
         if (_leaf.entries->size() == 0) return;
 
-        size_t n = 0;
-        size_t t = _size / 2;
-        other->ensure_space_available(t);
-        while (true) {
+        size_t i = 0;
+        size_t n = _leaf.entries->size() / 2;
+        other->ensure_space_available(n * leaf_node_entry_space_req());
+        while (i < n) {
             const LeafNodeEntry& entry = _leaf.entries->front();
-            n += leaf_node_entry_space_req(entry);
-            if (n > t) break;
-            other->_leaf.entries->push_back(std::move(entry));
+            other->_leaf.entries->push_back(entry);
             _leaf.entries->pop_front();
-        }
-    }
-
-    Page::ID Page::get_next_roots_page() const {
-        ensure_type_is(Type::ROOTS);
-        return _roots.next;
-    }
-
-    void Page::set_next_roots_page(ID next) {
-        ensure_type_is(Type::ROOTS);
-        _roots.next = next;
-    }
-
-    const Page::RootsMap* Page::get_roots_map() const {
-        ensure_type_is(Type::ROOTS);
-        return _roots.map;
-    }
-
-    bool Page::can_insert_root_node_id(const Buffer& id) const {
-        ensure_type_is(Type::ROOTS);
-        return get_remaining_space() >= roots_element_space_req(id);
-    }
-
-    bool Page::get_root_node_id(const Buffer& id, ID& root_node_id) const {
-        ensure_type_is(Type::ROOTS);
-        if (_roots.map->find(id) != _roots.map->end()) {
-            root_node_id = _roots.map->at(id);
-            return true;
-        }
-        return false;
-    }
-
-    void Page::set_root_node_id(Buffer id, ID root_node_id) {
-        ensure_type_is(Type::ROOTS);
-        if (_roots.map->find(id) == _roots.map->end()) {
-            uint16_t space = roots_element_space_req(id);
-            ensure_space_available(space);
-            _roots.map->emplace(
-                std::move(id),
-                root_node_id);
-            _size += space;
-        } else {
-            _roots.map->at(id) = root_node_id;
+            i++;
         }
     }
 
@@ -500,6 +499,24 @@ namespace diamond {
 
         buffer_writer.write<Type>(_type);
         switch (_type) {
+        case Type::COLLECTIONS: {
+            buffer_writer.write<ID>(_collections.next);
+            size_t num_elements = _collections.map->size();
+            buffer_writer.write<size_t>(num_elements);
+            CollectionsIterator iter;
+            for (iter = _collections.map->begin();
+                    iter != _collections.map->end();
+                    iter++) {
+                const std::pair<Buffer, Collection>& pair = *iter;
+
+                buffer_writer.write<size_t>(pair.first.size());
+                buffer_writer.write(pair.first);
+
+                buffer_writer.write<ID>(pair.second.root_node_id());
+                buffer_writer.write<ID>(pair.second.free_list_id());
+            }
+            break;
+        }
         case Type::DATA: {
             size_t num_entries = _data_entries->size();
             buffer_writer.write<size_t>(num_entries);
@@ -537,10 +554,9 @@ namespace diamond {
                     iter++) {
                 const InternalNodeEntry& entry = *iter;
 
+                buffer_writer.write<ID>(entry.key_data_id());
+                buffer_writer.write<size_t>(entry.key_data_index());
                 buffer_writer.write<ID>(entry.next_node_id());
-
-                buffer_writer.write<size_t>(entry.key_size());
-                buffer_writer.write(entry.key());
             }
             break;
         }
@@ -554,28 +570,10 @@ namespace diamond {
                     iter++) {
                 const LeafNodeEntry& entry = *iter;
 
-                buffer_writer.write<ID>(entry.data_id());
-                buffer_writer.write<size_t>(entry.data_index());
-
-                buffer_writer.write<size_t>(entry.key_size());
-                buffer_writer.write(entry.key());
-            }
-            break;
-        }
-        case Type::ROOTS: {
-            buffer_writer.write<ID>(_roots.next);
-            size_t num_elements = _roots.map->size();
-            buffer_writer.write<size_t>(num_elements);
-            RootsMapIterator iter;
-            for (iter = _roots.map->begin();
-                    iter != _roots.map->end();
-                    iter++) {
-                const std::pair<Buffer, ID>& pair = *iter;
-
-                buffer_writer.write<size_t>(pair.first.size());
-                buffer_writer.write(pair.first);
-
-                buffer_writer.write<ID>(pair.second);
+                buffer_writer.write<ID>(entry.key_data_id());
+                buffer_writer.write<size_t>(entry.key_data_index());
+                buffer_writer.write<ID>(entry.val_data_id());
+                buffer_writer.write<size_t>(entry.val_data_index());
             }
             break;
         }
@@ -588,6 +586,10 @@ namespace diamond {
             _size(header_size()),
             _usage_count(0) {
         switch (type) {
+        case Type::COLLECTIONS:
+            _collections.next = 0;
+            _collections.map = new Collections();
+            break;
         case Type::DATA:
             _data_entries = new std::vector<DataEntry>();
             break;
@@ -602,11 +604,19 @@ namespace diamond {
             _leaf.next = 0;
             _leaf.entries = new LeafNodeEntryList();
             break;
-        case Type::ROOTS:
-            _roots.next = 0;
-            _roots.map = new RootsMap();
-            break;
         }
+    }
+
+    Page::Collection::Collection(ID root_node_id, ID free_list_id)
+        : _root_node_id(root_node_id),
+        _free_list_id(free_list_id) {}
+
+    Page::ID Page::Collection::root_node_id() const {
+        return _root_node_id;
+    }
+
+    Page::ID Page::Collection::free_list_id() const {
+        return _free_list_id;
     }
 
     Page::DataEntry::DataEntry(Buffer data, ID overflow_id, size_t overflow_index)
@@ -652,45 +662,43 @@ namespace diamond {
         _free_space = free_space;
     }
 
-    Page::InternalNodeEntry::InternalNodeEntry(Buffer key, ID next_node_id)
-        : _key(std::move(key)),
-        _next_node_id(next_node_id) {
-        if (_key.size() >= MAX_KEY_SIZE) throw std::invalid_argument("key is too large");
+    Page::InternalNodeEntry::InternalNodeEntry(ID key_data_id, size_t key_data_index, ID next_node_id)
+        : _key_data_id(key_data_id),
+        _key_data_index(key_data_index),
+        _next_node_id(next_node_id) {}
+
+    Page::ID Page::InternalNodeEntry::key_data_id() const {
+        return _key_data_id;
     }
 
-    size_t Page::InternalNodeEntry::key_size() const {
-        return _key.size();
-    }
-
-    const Buffer& Page::InternalNodeEntry::key() const {
-        return _key;
+    size_t Page::InternalNodeEntry::key_data_index() const {
+        return _key_data_index;
     }
 
     Page::ID Page::InternalNodeEntry::next_node_id() const {
         return _next_node_id;
     }
 
-    Page::LeafNodeEntry::LeafNodeEntry(Buffer key, ID data_id, ID data_index)
-        : _key(std::move(key)),
-        _data_id(data_id),
-        _data_index(data_index) {
-        if (_key.size() >= MAX_KEY_SIZE) throw std::invalid_argument("key is too large");
+    Page::LeafNodeEntry::LeafNodeEntry(ID key_data_id, size_t key_data_index, ID val_data_id, size_t val_data_index)
+        : _key_data_id(key_data_id),
+        _key_data_index(key_data_index),
+        _val_data_id(val_data_id),
+        _val_data_index(val_data_index) {}
+
+    Page::ID Page::LeafNodeEntry::key_data_id() const {
+        return _key_data_id;
     }
 
-    size_t Page::LeafNodeEntry::key_size() const {
-        return _key.size();
+    size_t Page::LeafNodeEntry::key_data_index() const {
+        return _key_data_index;
     }
 
-    const Buffer& Page::LeafNodeEntry::key() const {
-        return _key;
+    Page::ID Page::LeafNodeEntry::val_data_id() const {
+        return _val_data_id;
     }
 
-    Page::ID Page::LeafNodeEntry::data_id() const {
-        return _data_id;
-    }
-
-    Page::ID Page::LeafNodeEntry::data_index() const {
-        return _data_index;
+    Page::ID Page::LeafNodeEntry::val_data_index() const {
+        return _val_data_index;
     }
 
 } // namespace diamond
