@@ -48,7 +48,8 @@ namespace diamond {
     }
 
     SharedPageLock::SharedPageLock(PageAccessor& page)
-            : _page(page) {
+            : _page(page),
+            _locked(false) {
         lock();
     }
 
@@ -69,7 +70,8 @@ namespace diamond {
     }
 
     UniquePageLock::UniquePageLock(PageAccessor& page)
-            : _page(page) {
+            : _page(page),
+            _locked(false) {
         lock();
     }
 
@@ -90,7 +92,8 @@ namespace diamond {
     }
 
     UpgradePageLock::UpgradePageLock(PageAccessor& page)
-            : _page(page) {
+            : _page(page),
+            _locked(false) {
         lock();
     }
 

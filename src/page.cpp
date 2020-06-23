@@ -30,18 +30,6 @@ namespace diamond {
     const uint16_t Page::MAX_KEY_SIZE = SIZE / 4;
 
     /* Static */
-    int Page::default_compare(const Buffer& b0, const Buffer& b1) {
-        size_t b0_n = b0.size();
-        size_t b1_n = b1.size();
-        size_t n = (b0_n <= b1_n) ? b0_n : b1_n;
-        int r = std::memcmp(b0.buffer(), b1.buffer(), n);
-        if (r != 0 || b0_n == b1_n) {
-            return r;
-        }
-        return (b0_n < b1_n) ? -1 : 1;
-    }
-
-    /* Static */
     uint64_t Page::file_pos_for_id(ID id) {
         return SIZE * (id - 1);
     }
@@ -362,20 +350,6 @@ namespace diamond {
         return _internal_node_entries;
     }
 
-    // Page::InternalNodeEntryListIterator Page::search_internal_node_entries(const Buffer& key, Compare compare) const {
-    //     ensure_type_is(Type::INTERNAL_NODE);
-    //     InternalNodeEntryListIterator iter = _internal_node_entries->begin();
-    //     while (true) {
-    //         if (compare((*iter).key(), key) >= 0) {
-    //             return iter;
-    //         }
-    //         InternalNodeEntryListIterator prev = iter++;
-    //         if (iter == _internal_node_entries->end()) {
-    //             return prev;
-    //         }
-    //     }
-    // }
-
     Page::InternalNodeEntryListIterator Page::internal_node_entries_begin() const {
         ensure_type_is(Type::INTERNAL_NODE);
         return _internal_node_entries->begin();
@@ -422,19 +396,6 @@ namespace diamond {
         ensure_type_is(Type::LEAF_NODE);
         return _leaf.entries;
     }
-
-    // Page::LeafNodeEntryListIterator Page::find_leaf_node_entry(const Buffer& key, Compare compare) const {
-    //     ensure_type_is(Type::LEAF_NODE);
-    //     LeafNodeEntryListIterator iter;
-    //     for (iter = _leaf.entries->begin(); 
-    //             iter != _leaf.entries->end();
-    //             iter++) {
-    //         if (compare((*iter).key(), key) == 0) {
-    //             return iter;
-    //         }
-    //     }
-    //     return iter;
-    // }
 
     Page::LeafNodeEntryListIterator Page::leaf_node_entries_begin() const {
         ensure_type_is(Type::LEAF_NODE);
@@ -699,6 +660,11 @@ namespace diamond {
 
     Page::ID Page::LeafNodeEntry::val_data_index() const {
         return _val_data_index;
+    }
+
+    void Page::LeafNodeEntry::set_val_data_ptr(ID val_data_id, size_t val_data_index) {
+        _val_data_id = val_data_id;
+        _val_data_index = val_data_index;
     }
 
 } // namespace diamond

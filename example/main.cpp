@@ -28,6 +28,7 @@ public:
     std::string first_name;
     std::string last_name;
     std::string gender;
+    uint8_t age;
     uint8_t height;
     uint16_t weight;
 
@@ -39,20 +40,23 @@ private:
         archive & first_name;
         archive & last_name;
         archive & gender;
+        archive & age;
         archive & height;
         archive & weight;
     }
 };
 
 std::vector<Person> people = {
-    Person{.first_name="Zach", .last_name="Perkitny", .gender="male", .height=70, .weight=155},
-    Person{.first_name="Bob", .last_name="Doe", .gender="male", .height=73, .weight=180},
-    Person{.first_name="Jane", .last_name="Doe", .gender="female", .height=62, .weight=130}
+    Person{.first_name="Zach", .last_name="Perkitny", .gender="male", .age=22, .height=70, .weight=155},
+    Person{.first_name="Bob", .last_name="Doe", .gender="male", .age=30, .height=73, .weight=180},
+    Person{.first_name="Jane", .last_name="Doe", .gender="female", .age=29, .height=62, .weight=130},
+    Person{.first_name="Zach", .last_name="Doe", .gender="male", .age=31, .height=74, .weight=195},
+    Person{.first_name="Pop", .last_name="Culture Guy", .gender="male", .age=36, .height=76, .weight=215}
 };
 
 int main() {
 
-    diamond::FileStorage storage("data");
+    diamond::FileStorage storage("diamond");
     diamond::BgPageWriterQueue page_writer_queue(storage);
     diamond::BgPageWriterFactory page_writer_factory(page_writer_queue);
     diamond::LRUEvictionPolicyFactory eviction_policy_factory;
@@ -65,20 +69,18 @@ int main() {
 
     for (Person& person : people) {
         std::string key = person.first_name + " " + person.last_name;
-        if (!db.exists<Person>(key)) {
-            std::cout << key << " does not exist, inserting..." << std::endl;
-            db.insert<Person>(key, person);
-        } else {
-            std::cout << key << " already exists." << std::endl;
-        }
+        db.put<Person>(key, person);
     }
 
     std::cout << "people count: " << db.count<Person>() << std::endl;
 
-    // diamond::Db::Query query = db.query()
-    //     .where()
-    //     .top(5);
-    // diamond::Db::QueryResult result = query.execute();
+    auto query = db.query<Person>()
+        .where([](const Person& person) {
+                return person.age >= 30 && person.last_name == "Doe";
+        });
+    for (const Person& person : query.execute()) {
+        std::cout << person.first_name << " " << person.last_name << std::endl;
+    }
 
     return 0;
 }

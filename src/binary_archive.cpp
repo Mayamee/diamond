@@ -26,8 +26,9 @@ namespace diamond {
     void BinaryIArchive::load_primitive(std::string& str) {
         size_t s;
         _reader >> s;
-        char* c = new char[s];
+        char* c = new char[s + 1];
         _reader.read(c, s);
+        c[s] = '\0';
         str = c;
         delete c;
     }

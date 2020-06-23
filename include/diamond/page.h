@@ -41,7 +41,6 @@ namespace diamond {
     class Page : boost::noncopyable {
     public:
         using ID = uint64_t;
-        using Compare = std::function<int(const Buffer&, const Buffer&)>;
 
         static const ID INVALID_ID;
 
@@ -124,6 +123,8 @@ namespace diamond {
             ID val_data_id() const;
             size_t val_data_index() const;
 
+            void set_val_data_ptr(ID val_data_id, size_t val_data_index);
+
         private:
             ID _key_data_id;
             size_t _key_data_index;
@@ -143,7 +144,6 @@ namespace diamond {
         using LeafNodeEntryList = std::list<LeafNodeEntry>;
         using LeafNodeEntryListIterator = LeafNodeEntryList::iterator;
 
-        static int default_compare(const Buffer& b0, const Buffer& b1);
         static uint64_t file_pos_for_id(ID id);
         static Page* from_storage(ID id, Storage& storage);
         static Page* new_page(ID id, Type type);
